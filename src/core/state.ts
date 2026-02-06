@@ -58,6 +58,11 @@ function sanitizeConfig(raw: unknown): PluginConfig {
         out.tempDir = (raw as Record<string, unknown>)['tempDir'] as string;
     }
 
+    // cooldownSeconds
+    if (typeof (raw as Record<string, unknown>)['cooldownSeconds'] === 'number') {
+        out.cooldownSeconds = (raw as Record<string, unknown>)['cooldownSeconds'] as number;
+    }
+
     // repositories
     const rawRepos = (raw as Record<string, unknown>)['repositories'];
     if (Array.isArray(rawRepos)) {

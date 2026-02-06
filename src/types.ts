@@ -41,6 +41,8 @@ export interface PluginConfig {
     repositories: RepoConfig[];
     /** 临时文件目录 */
     tempDir: string;
+    /** 同一 AppID 请求冷却时间（秒），0 表示不限制，解析失败不计入 CD */
+    cooldownSeconds: number;
     /** 按群的单独配置 */
     groupConfigs?: Record<string, GroupConfig>;
     /** ManifestHub 数据源配置 */

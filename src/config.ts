@@ -23,6 +23,7 @@ export const DEFAULT_CONFIG: PluginConfig = {
     useGithubToken: false,
     repositories: DEFAULT_REPOSITORIES,
     tempDir: 'temp',
+    cooldownSeconds: 300,
     groupConfigs: {},
     manifestHub: {
         enabled: true,
