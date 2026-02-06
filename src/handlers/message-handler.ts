@@ -3,10 +3,9 @@
  * 处理 Steam Depot 下载命令
  */
 
-import fs from 'fs';
 import path from 'path';
 import type { OB11Message } from 'napcat-types/napcat-onebot';
-import type { NapCatPluginContext } from 'napcat-types/napcat-onebot/network/plugin-manger';
+import type { NapCatPluginContext } from 'napcat-types/napcat-onebot/network/plugin/types';
 import { pluginState } from '../core/state';
 import { downloadSteamDepot, cleanupTempDir, getFileSizeString } from '../services/steam-depot-service';
 import { fetchFromManifestHub } from '../services/manifesthub-service';
@@ -64,7 +63,7 @@ interface ForwardNode {
     data: {
         user_id: string;
         nickname: string;
-        content: Array<{ type: string; data: any }>;
+        content: Array<{ type: string; data: Record<string, unknown> }>;
     };
 }
 
@@ -74,7 +73,7 @@ interface ForwardNode {
  * @param groupId 群号
  * @param message 消息内容
  */
-export async function sendGroupMessage(ctx: NapCatPluginContext, groupId: number | string, message: any[]): Promise<boolean> {
+export async function sendGroupMessage(ctx: NapCatPluginContext, groupId: number | string, message: Array<{ type: string; data: Record<string, unknown> }>): Promise<boolean> {
     try {
         await ctx.actions.call(
             'send_group_msg',
@@ -98,7 +97,7 @@ export async function sendGroupMessage(ctx: NapCatPluginContext, groupId: number
  * @param userId 用户 QQ 号
  * @param message 消息内容
  */
-export async function sendPrivateMessage(ctx: NapCatPluginContext, userId: number | string, message: any[]): Promise<boolean> {
+export async function sendPrivateMessage(ctx: NapCatPluginContext, userId: number | string, message: Array<{ type: string; data: Record<string, unknown> }>): Promise<boolean> {
     try {
         await ctx.actions.call(
             'send_private_msg',
@@ -146,7 +145,7 @@ async function sendGroupForwardMsg(ctx: NapCatPluginContext, groupId: number | s
  * @param nickname 发送者昵称
  * @param content 消息内容数组
  */
-function buildForwardNode(userId: string, nickname: string, content: Array<{ type: string; data: any }>): ForwardNode {
+function buildForwardNode(userId: string, nickname: string, content: Array<{ type: string; data: Record<string, unknown> }>): ForwardNode {
     return {
         type: 'node',
         data: {
@@ -522,7 +521,7 @@ export async function handleMessage(ctx: NapCatPluginContext, event: OB11Message
         // 获取消息内容
         const rawMessage = event.raw_message || '';
         const messageType = event.message_type; // 'group' | 'private'
-        const groupId = (event as any).group_id;
+        const groupId = Number(event.group_id);
         const userId = event.user_id;
         const messageId = event.message_id;
         const selfId = String(event.self_id || '10000');

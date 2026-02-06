@@ -40,23 +40,24 @@ export const DEFAULT_CONFIG: PluginConfig = {
  */
 export function initConfigUI(ctx: NapCatPluginContext) {
     const schema = ctx.NapCatConfig.combine(
-        // 插件信息头部
         ctx.NapCatConfig.html(`
-            <div style="padding: 16px; background: linear-gradient(135deg, #1b2838 0%, #2a475e 100%); border-radius: 12px; margin-bottom: 20px; color: white;">
-                <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: bold;">🎮 Steam Depot 下载器</h3>
-                <p style="margin: 0; font-size: 14px; opacity: 0.9;">从 GitHub 仓库获取 Steam 游戏的 manifest 和解密密钥，打包发送到群里。</p>
+            <div style="padding: 20px; background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                    <div style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: #1b2838; border-radius: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#66c0f4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12h10V2z"/><path d="M2 12a10 10 0 0 0 10 10V12H2z"/></svg>
+                    </div>
+                    <div>
+                        <div style="font-size: 16px; font-weight: 700; color: #111827;">Steam Depot 下载器</div>
+                        <div style="font-size: 12px; color: #9ca3af; margin-top: 2px;">从 GitHub 仓库获取 Steam 游戏的 manifest 和解密密钥</div>
+                    </div>
+                </div>
+                <div style="padding: 14px 16px; background: #f9fafb; border-radius: 8px; border: 1px solid #f3f4f6;">
+                    <div style="font-size: 13px; color: #374151; line-height: 1.6;">
+                        请前往 <strong>扩展页面</strong> 中的 <strong>Steam Depot</strong> 页面打开 WebUI 控制台进行详细配置，包括仪表盘、仓库管理、群管理等功能。
+                    </div>
+                </div>
             </div>
-        `),
-        // 全局开关
-        ctx.NapCatConfig.switch('enabled', '启用插件', '是否启用 Steam Depot 下载功能'),
-        // 调试模式
-        ctx.NapCatConfig.switch('debug', '调试模式', '启用后将输出详细的调试日志'),
-        // 命令前缀
-        ctx.NapCatConfig.input('commandPrefix', '命令前缀', '触发下载命令的前缀，默认为 #depot'),
-        // GitHub Token 开关
-        ctx.NapCatConfig.switch('useGithubToken', '使用 GitHub Token', '启用后将使用 GitHub Token 提高 API 速率限制'),
-        // GitHub Token
-        ctx.NapCatConfig.input('githubToken', 'GitHub Token', 'GitHub Personal Access Token，用于提高 API 请求限制')
+        `)
     );
 
     return schema;
