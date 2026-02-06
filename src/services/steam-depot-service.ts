@@ -41,7 +41,7 @@ function getGitHubHeaders(): Record<string, string> {
 /**
  * HTTP GET 请求封装
  */
-async function httpGet(url: string, headers?: Record<string, string>): Promise<{ status: number; data: any; text: string }> {
+async function httpGet(url: string, headers?: Record<string, string>): Promise<{ status: number; data: unknown; text: string }> {
     try {
         const defaultHeaders: Record<string, string> = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -110,8 +110,9 @@ export async function getSteamAppInfo(appId: string): Promise<SteamAppInfo | nul
         const url = `https://store.steampowered.com/api/appdetails?appids=${appId}&l=schinese`;
         const { status, data } = await httpGet(url);
 
-        if (status === 200 && data && data[appId]?.success) {
-            const appData = data[appId].data;
+        const steamData = data as Record<string, { success: boolean; data: Record<string, string> }>;
+        if (status === 200 && steamData && steamData[appId]?.success) {
+            const appData = steamData[appId].data;
             return {
                 name: appData.name,
                 appid: parseInt(appId),
@@ -272,7 +273,8 @@ async function downloadFromNonBranchRepo(repo: RepoConfig, appId: string, tempDi
             return result;
         }
 
-        const sha = data.commit?.sha;
+        const branchData = data as { commit?: { sha?: string } };
+        const sha = branchData.commit?.sha;
         if (!sha) {
             pluginState.log('warn', `无法获取 commit SHA: ${repo.name}/${appId}`);
             return result;
@@ -287,7 +289,8 @@ async function downloadFromNonBranchRepo(repo: RepoConfig, appId: string, tempDi
             return result;
         }
 
-        const treeItems: GitHubTreeItem[] = treeResp.data.tree || [];
+        const treeData = treeResp.data as { tree?: GitHubTreeItem[] };
+        const treeItems: GitHubTreeItem[] = treeData.tree || [];
         const appDir = path.join(tempDir, appId);
 
         if (!fs.existsSync(appDir)) {

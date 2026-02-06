@@ -15,7 +15,6 @@ import { pluginState } from '../core/state';
 import type {
     DepotKey,
     DepotKeysMap,
-    DepotKeySource,
     ManifestMap,
     ManifestHubResult,
 } from '../types';
@@ -165,7 +164,7 @@ const DEPOTKEYS_TIMEOUT = 60_000;
 /**
  * HTTP GET 请求封装（带超时）
  */
-async function httpGet(url: string, extraHeaders?: Record<string, string>, timeout: number = DEFAULT_TIMEOUT): Promise<{ status: number; text: string; data: any }> {
+async function httpGet(url: string, extraHeaders?: Record<string, string>, timeout: number = DEFAULT_TIMEOUT): Promise<{ status: number; text: string; data: unknown }> {
     const headers = { ...DEFAULT_HEADERS, ...extraHeaders };
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
@@ -173,7 +172,7 @@ async function httpGet(url: string, extraHeaders?: Record<string, string>, timeo
     try {
         const response = await fetch(url, { method: 'GET', headers, signal: controller.signal });
         const text = await response.text();
-        let data: any = null;
+        let data: unknown = null;
         try {
             data = JSON.parse(text);
         } catch {
@@ -215,7 +214,7 @@ async function fetchDepotKeysFromUrl(url: string, signal?: AbortSignal): Promise
         try {
             const response = await fetch(url, { method: 'GET', headers, signal: controller.signal });
             const text = await response.text();
-            let data: any = null;
+            let data: unknown = null;
             try { data = JSON.parse(text); } catch { data = text; }
 
             if (response.status !== 200) return null;
@@ -345,12 +344,13 @@ export async function getManifests(appId: string): Promise<ManifestMap> {
     }
 
     // 检查 API 状态
-    if (!data || data.status !== 'success') {
-        throw new Error(`Manifest API 请求失败: ${JSON.stringify(data?.status || data)}`);
+    const apiResp = data as { status?: string; data?: Record<string, { depots?: Record<string, { manifests?: { public?: { gid?: string } } }> }> } | null;
+    if (!apiResp || apiResp.status !== 'success') {
+        throw new Error(`Manifest API 请求失败: ${JSON.stringify(apiResp?.status || data)}`);
     }
 
     // 解析数据: data.data[appId].depots
-    const appData = data.data?.[appId];
+    const appData = apiResp.data?.[appId];
     if (!appData) {
         throw new Error(`未找到 AppID ${appId} 的数据`);
     }
@@ -401,36 +401,42 @@ export async function getDLCList(appId: string): Promise<string[]> {
             return [];
         }
 
-        const appData = data.data?.[appId];
+        const cmdResp = data as Record<string, unknown> | null;
+        const cmdData = cmdResp?.['data'] as Record<string, Record<string, unknown>> | undefined;
+        const appData = cmdData?.[appId];
         if (!appData) return [];
 
         const dlcIds = new Set<string>();
 
         // 从 common.listofdlc 提取
-        const commonList = appData.common?.listofdlc;
+        const common = appData['common'] as Record<string, unknown> | undefined;
+        const commonList = common?.['listofdlc'];
         if (typeof commonList === 'string') {
             const matches = commonList.match(/\d+/g);
             if (matches) matches.forEach((id: string) => dlcIds.add(id));
         }
 
         // 从 extended.listofdlc 提取
-        const extendedList = appData.extended?.listofdlc;
+        const extended = appData['extended'] as Record<string, unknown> | undefined;
+        const extendedList = extended?.['listofdlc'];
         if (typeof extendedList === 'string') {
             const matches = extendedList.match(/\d+/g);
             if (matches) matches.forEach((id: string) => dlcIds.add(id));
         }
 
         // 从 depots 中提取 DLC
-        if (appData.depots && typeof appData.depots === 'object') {
-            const dlcSection = appData.depots.dlc;
+        const depots = appData['depots'];
+        if (depots && typeof depots === 'object') {
+            const dlcSection = (depots as Record<string, unknown>)['dlc'];
             if (dlcSection && typeof dlcSection === 'object') {
-                Object.keys(dlcSection).forEach(id => dlcIds.add(id));
+                Object.keys(dlcSection as object).forEach(id => dlcIds.add(id));
             }
         }
 
         // 从 dlc 字典提取
-        if (appData.dlc && typeof appData.dlc === 'object') {
-            Object.keys(appData.dlc).forEach(id => dlcIds.add(id));
+        const dlc = appData['dlc'];
+        if (dlc && typeof dlc === 'object') {
+            Object.keys(dlc as object).forEach(id => dlcIds.add(id));
         }
 
         const result = Array.from(dlcIds).sort((a, b) => parseInt(a) - parseInt(b));
