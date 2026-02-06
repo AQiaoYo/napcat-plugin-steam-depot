@@ -1,11 +1,33 @@
-# NapCat 插件开发模板
+# NapCat Steam Depot 下载器插件
 
-一个快速开始 NapCat 插件开发的模板项目。
+从 GitHub 仓库获取 Steam 游戏的 Manifest 和解密密钥，打包发送到 QQ 群。
+
+## ✨ 功能
+
+- 🎮 发送 `#depot <AppID>` 即可下载对应游戏的 Depot 数据
+- 📦 自动从配置的 GitHub 仓库获取 Manifest 和解密密钥
+- 🔑 自动解析 VDF 文件提取 Depot 解密密钥
+- 📜 自动生成用于 Steam 模拟器的 Lua 脚本
+- 📤 打包成 ZIP 文件并上传到群文件
+- 🌐 支持多个 GitHub 仓库源，自动切换
+
+## 📖 使用方法
+
+在群聊中发送：
+
+```
+#depot 730       # 下载 CS:GO
+#depot 570       # 下载 Dota 2
+#depot 1245620   # 下载 Elden Ring
+#depot help      # 查看帮助
+```
+
+> AppID 可在 Steam 商店页面 URL 中找到，如: `store.steampowered.com/app/730/`
 
 ## 📁 项目结构
 
 ```
-napcat-plugin-template/
+napcat-plugin-steam-depot/
 ├── src/
 │   ├── index.ts              # 插件入口，导出生命周期函数
 │   ├── config.ts             # 配置定义和 WebUI Schema
@@ -15,12 +37,12 @@ napcat-plugin-template/
 │   ├── handlers/
 │   │   └── message-handler.ts # 消息处理器
 │   ├── services/
-│   │   └── api-service.ts    # WebUI API 路由
+│   │   ├── api-service.ts    # WebUI API 路由
+│   │   └── steam-depot-service.ts # Steam Depot 下载服务
 │   └── webui/
 │       └── dashboard.html    # WebUI 控制台页面
 ├── scripts/
 │   └── copy-assets.js        # 构建后资源复制脚本
-├── templates/                 # 模板文件目录（可选）
 ├── package.json
 ├── tsconfig.json
 ├── vite.config.ts
@@ -35,19 +57,47 @@ napcat-plugin-template/
 pnpm install
 ```
 
-### 2. 修改插件信息
+### 2. 构建插件
 
-编辑 `package.json`，修改以下字段：
-
-```json
-{
-    "name": "napcat-plugin-your-name",
-    "description": "你的插件描述",
-    "author": "你的名字"
-}
+```bash
+pnpm run build
 ```
 
-### 3. 开发你的功能
+构建产物位于 `dist/` 目录。
+
+### 3. 安装到 NapCat
+
+将 `dist/` 目录复制到 NapCat 的插件目录：
+
+```
+NapCat/plugins/napcat-plugin-steam-depot/
+├── index.mjs
+├── package.json
+└── webui/
+    └── dashboard.html
+```
+
+## ⚙️ 配置说明
+
+在 NapCat WebUI 中可配置：
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| 启用插件 | 是否启用插件功能 | `true` |
+| 调试模式 | 输出详细日志 | `false` |
+| 命令前缀 | 触发下载命令的前缀 | `#depot` |
+| GitHub Token | 提高 API 请求限制（可选） | 空 |
+
+### 支持的仓库
+
+默认配置了以下仓库源：
+
+- `SteamAutoCracks/ManifestHub` (Branch 类型) - 默认启用
+- `Auiowu/ManifestAutoUpdate` (Decrypted 类型)
+- `ikun0014/ManifestHub` (Decrypted 类型)
+- `tymolu233/ManifestAutoUpdate` (Decrypted 类型)
+
+## 🛠️ 开发
 
 - **添加配置项**: 编辑 `src/types.ts` 和 `src/config.ts`
 - **消息处理**: 编辑 `src/handlers/message-handler.ts`

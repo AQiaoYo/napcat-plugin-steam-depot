@@ -1,14 +1,12 @@
 /**
- * NapCat 插件模板
+ * NapCat Steam Depot 下载器插件
  * 
- * 这是一个通用的 NapCat 插件开发模板，包含：
- * - 插件生命周期管理
- * - 配置管理（持久化、WebUI 配置界面）
- * - 消息处理框架
- * - WebUI API 路由注册
- * - 群级别配置管理
+ * 功能：
+ * - 用户发送 #depot <AppID> 命令
+ * - 从 GitHub 仓库获取对应游戏的 manifest 和解密密钥
+ * - 打包成 zip 文件发送到群里
  * 
- * @author Your Name
+ * @author AQiaoYo
  * @license MIT
  */
 
@@ -24,6 +22,7 @@ import { initConfigUI } from './config';
 import { pluginState } from './core/state';
 import { handleMessage } from './handlers/message-handler';
 import { registerApiRoutes } from './services/api-service';
+import { preloadDepotKeys } from './services/manifesthub-service';
 
 /** 框架配置 UI Schema，NapCat WebUI 会读取此导出来展示配置面板 */
 export let plugin_config_ui: PluginConfigSchema = [];
@@ -71,14 +70,14 @@ const plugin_init = async (ctx: NapCatPluginContext) => {
             // 注册 API 路由
             registerApiRoutes(ctx);
 
-            // 注册仪表盘页面（可选）
+            // 注册仪表盘页面
             if (base && base.page) {
                 base.page({
-                    path: 'plugin-dashboard',
-                    title: '插件仪表盘',
-                    icon: '🔌',
+                    path: 'steam-depot',
+                    title: 'Steam Depot',
+                    icon: '🎮',
                     htmlFile: 'webui/dashboard.html',
-                    description: '插件管理控制台'
+                    description: 'Steam Depot 下载器控制台'
                 });
             }
         } catch (e) {
@@ -86,6 +85,9 @@ const plugin_init = async (ctx: NapCatPluginContext) => {
         }
 
         pluginState.log('info', '插件初始化完成');
+
+        // 后台预加载 DepotKeys（不阻塞初始化）
+        preloadDepotKeys();
     } catch (error) {
         pluginState.log('error', '插件初始化失败:', error);
     }
@@ -110,7 +112,14 @@ const plugin_onmessage = async (ctx: NapCatPluginContext, event: OB11Message) =>
  */
 const plugin_cleanup = async (ctx: NapCatPluginContext) => {
     try {
-        // TODO: 在这里添加你的清理逻辑
+        // 清理临时下载目录
+        const fs = await import('fs');
+        const path = await import('path');
+        const tempDir = path.join(pluginState.dataPath, pluginState.config.tempDir);
+        if (fs.existsSync(tempDir)) {
+            fs.rmSync(tempDir, { recursive: true, force: true });
+            pluginState.logDebug(`清理临时目录: ${tempDir}`);
+        }
         pluginState.log('info', '插件已卸载');
     } catch (e) {
         pluginState.log('warn', '插件卸载时出错:', e);
