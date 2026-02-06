@@ -6,8 +6,6 @@
 import type { NapCatPluginContext } from 'napcat-types/napcat-onebot/network/plugin-manger';
 import { pluginState } from '../core/state';
 
-/** API 路由前缀 - 修改为你的插件名称 */
-export const ROUTE_PREFIX = '/plugin';
 
 /**
  * 解析请求体

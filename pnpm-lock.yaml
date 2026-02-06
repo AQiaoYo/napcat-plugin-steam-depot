@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       napcat-types:
-        specifier: 0.0.11
-        version: 0.0.11
+        specifier: 0.0.16
+        version: 0.0.16
     devDependencies:
       '@rollup/plugin-node-resolve':
         specifier: ^15.0.0
@@ -429,8 +429,8 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
-  napcat-types@0.0.11:
-    resolution: {integrity: sha512-HKrhmC1oxIc3amv6gVx9wBKewBfQZXPrLHdJRvOKOx4NJdxzUXMVvE5C2em8COGcImkCq4NFRRAwZq4Bm8xDKQ==}
+  napcat-types@0.0.16:
+    resolution: {integrity: sha512-y3qhpdd16ATsMp4Jf88XwisFBVKqY+XSfvGX1YqMEasVFTNXeKr1MZrIzhHMkllW1QJZXAI8iNGVJO1gkHEtLQ==}
 
   path-parse@1.0.7:
     resolution: {integrity: sha512-LDJzPVEEEPR+y48z93A0Ed0yXb8pAByGWo/k5YYdYgpY2/2EsOsksJrq7lOHxryrVOn1ejG6oAp8ahvOIQD8sw==}
@@ -794,7 +794,7 @@ snapshots:
 
   nanoid@3.3.11: {}
 
-  napcat-types@0.0.11:
+  napcat-types@0.0.16:
     dependencies:
       '@sinclair/typebox': 0.34.48
       '@types/node': 22.19.9
