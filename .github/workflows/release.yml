@@ -1,0 +1,244 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION="v$(date +'%Y%m%d%H%M%S')"
+          fi
+          # 去掉前面的 'v' 字符用于 package.json
+          CLEAN_VERSION=$(echo $VERSION | sed 's/^v//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "clean_version=$CLEAN_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update package.json version
+        run: |
+          npm version ${{ steps.version.outputs.clean_version }} --no-git-tag-version --allow-same-version
+
+      - name: Build project
+        run: pnpm run build
+
+      - name: Prepare release package
+        run: |
+          # 创建临时目录用于组织文件
+          mkdir -p release
+
+          # 复制需要的文件到临时目录
+          cp dist/index.mjs release/
+          cp dist/package.json release/
+          cp -r dist/webui release/
+
+          # 进入临时目录并压缩
+          cd release
+          zip -r ../napcat-plugin-steam-depot.zip index.mjs package.json webui
+
+      - name: Verify zip contents
+        run: |
+          unzip -l napcat-plugin-steam-depot.zip
+
+      - name: Create Release Note via AI
+        env:
+          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+          OPENROUTER_API_URL: "https://91vip.futureppo.top/v1/chat/completions"
+          OPENROUTER_MODEL: "copilot/gemini-3-flash-preview"
+          GITHUB_OWNER: "AQiaoYo"
+          GITHUB_REPO: "napcat-plugin-steam-depot"
+        run: |
+          set -euo pipefail
+          CURRENT_TAG="${{ steps.version.outputs.version }}"
+
+          # 获取所有 tag 并按版本排序
+          git fetch --tags --force
+
+          # 获取最新的已存在 tag 作为上一个版本
+          PREV_TAG=$(git tag -l "v*" --sort=version:refname | tail -1)
+
+          if [ -z "$PREV_TAG" ]; then
+            # 如果没有任何 tag，使用仓库的第一个 commit
+            PREV_TAG=$(git rev-list --max-parents=0 HEAD | head -1)
+          fi
+          echo "Current tag: $CURRENT_TAG"
+          echo "Previous tag: $PREV_TAG"
+
+          # 获取提交记录和差异（使用 HEAD 而不是可能不存在的 CURRENT_TAG）
+          COMMITS=$(git log --pretty=format:'- %s (%h)' "$PREV_TAG"..HEAD 2>/dev/null || git log --pretty=format:'- %s (%h)' -10)
+          SUMMARY_LINE=$(git diff --stat "$PREV_TAG"..HEAD | tail -1 || echo "No changes")
+          FILE_CHANGES=$(git diff --stat "$PREV_TAG"..HEAD | head -n -1 | head -30 || echo "")
+          CODE_DIFF=$(git diff "$PREV_TAG"..HEAD -- 'src/*.ts' | head -c 5000 || echo "Diff too large or no code changes")
+
+          # 构建请求
+          SYSTEM_PROMPT=$(cat .github/prompt/release_note_prompt.txt)
+          USER_CONTENT="当前版本: $CURRENT_TAG
+          上一版本: $PREV_TAG
+          日期: $(date +'%Y-%m-%d')
+
+          ## 提交列表
+          $COMMITS
+
+          ## 文件变化统计
+          $SUMMARY_LINE
+
+          ## 变更文件列表
+          $FILE_CHANGES
+
+          ## 关键代码变化预览
+          \`\`\`diff
+          $CODE_DIFF
+          \`\`\`"
+
+          BODY=$(jq -n \
+            --arg system "$SYSTEM_PROMPT" \
+            --arg user "$USER_CONTENT" \
+            --arg model "$OPENROUTER_MODEL" \
+            '{model: $model, messages:[{role:"system", content:$system},{role:"user", content:$user}], temperature:0.2, max_tokens:1500}')
+
+          RESPONSE=$(curl -s -X POST "$OPENROUTER_API_URL" \
+            -H "Authorization: Bearer $OPENAI_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$BODY")
+
+          RELEASE_BODY=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // ""')
+
+          if [ -n "$RELEASE_BODY" ] && [ "$RELEASE_BODY" != "null" ]; then
+            echo -e "$RELEASE_BODY" > CHANGELOG.md
+            # 替换占位符
+            sed -i "s/{VERSION}/$CURRENT_TAG/g" CHANGELOG.md
+            sed -i "s/{PREV_VERSION}/$PREV_TAG/g" CHANGELOG.md
+          else
+            sed "s/{VERSION}/$CURRENT_TAG/g" .github/prompt/default.md | sed "s/{PREV_VERSION}/$PREV_TAG/g" > CHANGELOG.md
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          body_path: CHANGELOG.md
+          draft: false
+          files: |
+            napcat-plugin-steam-depot.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Plugin Index and Create PR
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ steps.version.outputs.clean_version }}"
+          TAG_VERSION="${{ steps.version.outputs.version }}"
+          PLUGIN_ID="napcat-plugin-steam-depot"
+          INDEX_REPO="NapNeko/napcat-plugin-index"
+          FORK_OWNER="${{ github.repository_owner }}"
+          BRANCH_NAME="update-${PLUGIN_ID}-${TAG_VERSION}"
+
+          echo "📦 Updating plugin index for ${PLUGIN_ID} to version ${VERSION}"
+
+          # 配置 git
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Fork 仓库（如果已存在会跳过）
+          gh repo fork "${INDEX_REPO}" --clone=false || true
+
+          # 克隆 fork 的仓库
+          cd ..
+          rm -rf napcat-plugin-index
+          gh repo clone "${FORK_OWNER}/napcat-plugin-index" -- --depth=1
+          cd napcat-plugin-index
+
+          # 同步上游
+          git remote add upstream "https://github.com/${INDEX_REPO}.git" || true
+          git fetch upstream main
+          git checkout -B "${BRANCH_NAME}" upstream/main
+
+          # 更新 plugins.v4.json
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG_VERSION}/${PLUGIN_ID}.zip"
+          UPDATE_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # 使用 jq 更新版本号和下载链接
+          jq --arg id "${PLUGIN_ID}" \
+             --arg version "${VERSION}" \
+             --arg downloadUrl "${DOWNLOAD_URL}" \
+             --arg updateTime "${UPDATE_TIME}" \
+             '
+             .updateTime = $updateTime |
+             .plugins = [.plugins[] | if .id == $id then .version = $version | .downloadUrl = $downloadUrl else . end]
+             ' plugins.v4.json > plugins.v4.json.tmp && mv plugins.v4.json.tmp plugins.v4.json
+
+          # 检查是否有变化
+          if git diff --quiet plugins.v4.json; then
+            echo "⏭️ No changes detected, skipping PR creation"
+            exit 0
+          fi
+
+          # 提交并推送
+          git add plugins.v4.json
+          git commit -m "chore(${PLUGIN_ID}): update to ${TAG_VERSION}"
+          git push -f "https://${GH_TOKEN}@github.com/${FORK_OWNER}/napcat-plugin-index.git" "${BRANCH_NAME}"
+
+          # 创建 PR（如果不存在）
+          PR_TITLE="chore(${PLUGIN_ID}): update to ${TAG_VERSION}"
+          PR_BODY="## 🔄 Plugin Update
+
+          - **Plugin**: ${PLUGIN_ID}
+          - **Version**: ${VERSION}
+          - **Release**: https://github.com/${{ github.repository }}/releases/tag/${TAG_VERSION}
+
+          ---
+          *This PR was automatically created by GitHub Actions.*"
+
+          # 检查是否已存在 PR
+          EXISTING_PR=$(gh pr list --repo "${INDEX_REPO}" --head "${FORK_OWNER}:${BRANCH_NAME}" --json number --jq '.[0].number' || echo "")
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "✅ PR #${EXISTING_PR} already exists, updated branch"
+          else
+            gh pr create \
+              --repo "${INDEX_REPO}" \
+              --head "${FORK_OWNER}:${BRANCH_NAME}" \
+              --base main \
+              --title "${PR_TITLE}" \
+              --body "${PR_BODY}"
+            echo "✅ PR created successfully"
+          fi
