@@ -1,16 +1,18 @@
 {
-    "name": "napcat-plugin-template",
+    "name": "napcat-plugin-steam-depot",
     "version": "1.0.0",
     "type": "module",
     "main": "index.mjs",
-    "description": "NapCat 插件开发模板 - 快速开始你的插件开发",
-    "author": "Your Name",
+    "description": "NapCat Steam Depot 下载器 - 从 GitHub 获取 Steam 游戏 Manifest 和解密密钥",
+    "author": "AQiaoYo",
     "license": "MIT",
     "keywords": [
         "napcat",
         "plugin",
         "qq",
-        "template"
+        "steam",
+        "depot",
+        "manifest"
     ],
     "dependencies": {
         "napcat-types": "0.0.11"
