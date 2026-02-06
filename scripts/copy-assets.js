@@ -16,12 +16,14 @@ if (!fs.existsSync(distDir)) {
     fs.mkdirSync(distDir, { recursive: true });
 }
 
-// 复制 webui 目录（如果存在）
-const webuiSrc = path.resolve(rootDir, 'src/webui');
+// 复制构建后的 webui 目录（React 构建产物）
+const webuiSrc = path.resolve(rootDir, 'src/webui/dist');
 const webuiDest = path.resolve(distDir, 'webui');
 if (fs.existsSync(webuiSrc)) {
     fs.cpSync(webuiSrc, webuiDest, { recursive: true });
-    console.log('✅ 已复制 webui 目录');
+    console.log('✅ 已复制 webui 构建产物');
+} else {
+    console.warn('⚠️ webui 构建产物不存在，请先运行 pnpm run build:webui');
 }
 
 // 复制 templates 目录（如果存在）
