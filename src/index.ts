@@ -76,7 +76,7 @@ const plugin_init = async (ctx: NapCatPluginContext) => {
                     path: 'steam-depot',
                     title: 'Steam Depot',
                     icon: '🎮',
-                    htmlFile: 'webui/dashboard.html',
+                    htmlFile: 'webui/index.html',
                     description: 'Steam Depot 下载器控制台'
                 });
             }
