@@ -3,27 +3,18 @@
  * 注册 WebUI API 路由
  */
 
-import type { NapCatPluginContext } from 'napcat-types/napcat-onebot/network/plugin-manger';
+import type { NapCatPluginContext, PluginHttpRequest, PluginHttpResponse } from 'napcat-types/napcat-onebot/network/plugin/types';
+import type { OB11Group } from 'napcat-types/napcat-onebot';
 import { pluginState } from '../core/state';
 
 
 /**
  * 解析请求体
- * 处理 Express 可能没有解析 body 的情况
+ * PluginHttpRequest.body 已由框架解析
  */
-async function parseBody(req: any): Promise<any> {
-    if (req.body && Object.keys(req.body).length > 0) {
-        return req.body;
-    }
-    try {
-        const raw = await new Promise<string>((resolve) => {
-            let data = '';
-            req.on('data', (chunk: any) => data += chunk);
-            req.on('end', () => resolve(data));
-        });
-        if (raw) return JSON.parse(raw);
-    } catch (e) {
-        pluginState.log('error', '解析请求体失败:', e);
+function parseBody(req: PluginHttpRequest): Record<string, unknown> {
+    if (req.body && typeof req.body === 'object' && Object.keys(req.body as object).length > 0) {
+        return req.body as Record<string, unknown>;
     }
     return {};
 }
@@ -33,16 +24,12 @@ async function parseBody(req: any): Promise<any> {
  * @param ctx 插件上下文
  */
 export function registerApiRoutes(ctx: NapCatPluginContext): void {
-    const router = (ctx as any).router;
-    if (!router) {
-        pluginState.log('warn', 'router 不可用，跳过 API 路由注册');
-        return;
-    }
+    const router = ctx.router;
 
     // ==================== 基础接口（无认证，供 WebUI 页面调用）====================
 
     // 插件信息
-    router.getNoAuth('/info', (_req: any, res: any) => {
+    router.getNoAuth('/info', (_req: PluginHttpRequest, res: PluginHttpResponse) => {
         res.json({
             code: 0,
             data: { pluginName: ctx.pluginName }
@@ -50,7 +37,7 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
     });
 
     // 状态接口
-    router.getNoAuth('/status', (_req: any, res: any) => {
+    router.getNoAuth('/status', (_req: PluginHttpRequest, res: PluginHttpResponse) => {
         res.json({
             code: 0,
             data: {
@@ -66,15 +53,15 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
     // ==================== 配置接口（无认证）====================
 
     // 获取配置
-    router.getNoAuth('/config', (_req: any, res: any) => {
+    router.getNoAuth('/config', (_req: PluginHttpRequest, res: PluginHttpResponse) => {
         res.json({ code: 0, data: pluginState.getConfig() });
     });
 
     // 保存配置
-    router.postNoAuth('/config', async (req: any, res: any) => {
+    router.postNoAuth('/config', async (req: PluginHttpRequest, res: PluginHttpResponse) => {
         try {
-            const body = await parseBody(req);
-            pluginState.setConfig(ctx, body);
+            const body = parseBody(req);
+            pluginState.setConfig(ctx, body as Partial<import('../types').PluginConfig>);
             pluginState.log('info', '配置已保存');
             res.json({ code: 0, message: 'ok' });
         } catch (err) {
@@ -86,18 +73,18 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
     // ==================== 群管理接口（无认证）====================
 
     // 获取群列表
-    router.getNoAuth('/groups', async (_req: any, res: any) => {
+    router.getNoAuth('/groups', async (_req: PluginHttpRequest, res: PluginHttpResponse) => {
         try {
-            const groups: any[] = await ctx.actions.call(
+            const groups = await ctx.actions.call(
                 'get_group_list',
                 {},
                 ctx.adapterName,
                 ctx.pluginManager.config
-            );
+            ) as OB11Group[];
             const config = pluginState.getConfig();
 
             // 为每个群添加配置信息
-            const groupsWithConfig = (groups || []).map((group: any) => {
+            const groupsWithConfig = (groups || []).map((group) => {
                 const groupId = String(group.group_id);
                 const groupConfig = config.groupConfigs?.[groupId] || {};
                 return {
@@ -114,14 +101,14 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
     });
 
     // 更新群配置
-    router.postNoAuth('/groups/:id/config', async (req: any, res: any) => {
+    router.postNoAuth('/groups/:id/config', async (req: PluginHttpRequest, res: PluginHttpResponse) => {
         try {
             const groupId = String(req.params?.id || '');
             if (!groupId) {
                 return res.status(400).json({ code: -1, message: '缺少群 ID' });
             }
 
-            const body = await parseBody(req);
+            const body = parseBody(req);
             const { enabled } = body;
 
             pluginState.updateGroupConfig(ctx, groupId, { enabled: Boolean(enabled) });
@@ -134,9 +121,9 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
     });
 
     // 批量更新群配置
-    router.postNoAuth('/groups/bulk-config', async (req: any, res: any) => {
+    router.postNoAuth('/groups/bulk-config', async (req: PluginHttpRequest, res: PluginHttpResponse) => {
         try {
-            const body = await parseBody(req);
+            const body = parseBody(req);
             const { enabled, groupIds } = body;
 
             if (typeof enabled !== 'boolean' || !Array.isArray(groupIds)) {
@@ -161,7 +148,7 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
     // ==================== 缓存管理接口（无认证）====================
 
     // 获取缓存状态
-    router.getNoAuth('/cache/status', async (_req: any, res: any) => {
+    router.getNoAuth('/cache/status', async (_req: PluginHttpRequest, res: PluginHttpResponse) => {
         try {
             const { getDepotKeysCacheInfo } = await import('./manifesthub-service');
             const info = getDepotKeysCacheInfo();
@@ -173,7 +160,7 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
     });
 
     // 清除缓存
-    router.postNoAuth('/cache/clear', async (_req: any, res: any) => {
+    router.postNoAuth('/cache/clear', async (_req: PluginHttpRequest, res: PluginHttpResponse) => {
         try {
             const { clearDepotKeysCache } = await import('./manifesthub-service');
             clearDepotKeysCache();
@@ -186,7 +173,7 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
     });
 
     // 刷新缓存
-    router.postNoAuth('/cache/refresh', async (_req: any, res: any) => {
+    router.postNoAuth('/cache/refresh', async (_req: PluginHttpRequest, res: PluginHttpResponse) => {
         try {
             const { getDepotKeys } = await import('./manifesthub-service');
             const keys = await getDepotKeys(true);

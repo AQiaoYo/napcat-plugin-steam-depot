@@ -10,12 +10,9 @@
  * @license MIT
  */
 
-// @ts-ignore - NapCat 类型定义
-import type { PluginConfigSchema, PluginConfigUIController } from 'napcat-types/napcat-onebot/network/plugin-manger';
-import type { NapCatPluginContext } from 'napcat-types/napcat-onebot/network/plugin-manger';
-// @ts-ignore - NapCat 消息类型
+import type { PluginConfigSchema, PluginConfigUIController } from 'napcat-types/napcat-onebot/network/plugin/types';
+import type { NapCatPluginContext, PluginHttpRequest, PluginHttpResponse } from 'napcat-types/napcat-onebot/network/plugin/types';
 import type { OB11Message } from 'napcat-types/napcat-onebot';
-// @ts-ignore - NapCat 事件类型
 import { EventType } from 'napcat-types/napcat-onebot/event/index';
 
 import { initConfigUI } from './config';
@@ -23,6 +20,7 @@ import { pluginState } from './core/state';
 import { handleMessage } from './handlers/message-handler';
 import { registerApiRoutes } from './services/api-service';
 import { preloadDepotKeys } from './services/manifesthub-service';
+import type { PluginConfig } from './types';
 
 /** 框架配置 UI Schema，NapCat WebUI 会读取此导出来展示配置面板 */
 export let plugin_config_ui: PluginConfigSchema = [];
@@ -48,15 +46,15 @@ const plugin_init = async (ctx: NapCatPluginContext) => {
 
         // 注册 WebUI 路由
         try {
-            const router = (ctx as any).router;
+            const router = ctx.router;
 
             // 静态资源目录
-            if (router && router.static) router.static('/static', 'webui');
+            if (router) router.static('/static', 'webui');
 
             // 插件信息脚本（用于前端获取插件名）
-            router.get('/static/plugin-info.js', (_req: any, res: any) => {
+            router.get('/static/plugin-info.js', (_req: PluginHttpRequest, res: PluginHttpResponse) => {
                 try {
-                    res.type('application/javascript');
+                    res.setHeader('Content-Type', 'application/javascript');
                     res.send(`window.__PLUGIN_NAME__ = ${JSON.stringify(ctx.pluginName)};`);
                 } catch (e) {
                     res.status(500).send('// failed to generate plugin-info');
@@ -128,7 +126,7 @@ export const plugin_get_config = async (ctx: NapCatPluginContext) => {
 };
 
 /** 设置配置（完整替换） */
-export const plugin_set_config = async (ctx: NapCatPluginContext, config: any) => {
+export const plugin_set_config = async (ctx: NapCatPluginContext, config: PluginConfig) => {
     pluginState.logDebug(`plugin_set_config 调用: ${JSON.stringify(config)}`);
     pluginState.replaceConfig(ctx, config);
     pluginState.log('info', '配置已通过 API 更新');
@@ -142,8 +140,8 @@ export const plugin_on_config_change = async (
     ctx: NapCatPluginContext,
     ui: PluginConfigUIController,
     key: string,
-    value: any,
-    currentConfig?: Record<string, any>
+    value: unknown,
+    currentConfig?: Record<string, unknown>
 ) => {
     try {
         pluginState.logDebug(`plugin_on_config_change: key=${key}, value=${JSON.stringify(value)}`);

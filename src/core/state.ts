@@ -9,7 +9,7 @@ import type { NapCatPluginContext, PluginLogger } from 'napcat-types/napcat-oneb
 import type { ActionMap } from 'napcat-types/napcat-onebot/action/index';
 import type { NetworkAdapterConfig } from 'napcat-types/napcat-onebot/config/config';
 import { DEFAULT_CONFIG, getDefaultConfig } from '../config';
-import type { PluginConfig, GroupConfig, RepoConfig, RepoType, ManifestHubConfig, DepotKeySource } from '../types';
+import type { PluginConfig, GroupConfig, RepoType, DepotKeySource } from '../types';
 
 /** 日志前缀 */
 const LOG_TAG = '[SteamDepot]';
@@ -186,13 +186,13 @@ class PluginState {
      * @param params 参数
      * @returns API 返回结果
      */
-    async callApi(api: string, params: Record<string, unknown>): Promise<any> {
+    async callApi(api: string, params: Record<string, unknown>): Promise<unknown> {
         if (!this.actions) {
             this.log('error', `调用 API ${api} 失败: actions 未初始化`);
             return null;
         }
         try {
-            const result = await (this.actions as any).call(api, params, this.adapterName, this.networkConfig);
+            const result = await this.actions.call(api as 'get_status', params, this.adapterName, this.networkConfig!);
             return result;
         } catch (error) {
             this.log('error', `调用 API ${api} 失败:`, error);
