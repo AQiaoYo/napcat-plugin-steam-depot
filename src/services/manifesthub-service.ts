@@ -93,6 +93,52 @@ function loadDepotKeysFromCache(): DepotKeysMap | null {
 }
 
 /**
+ * 获取 DepotKeys 缓存信息（供 WebUI 展示）
+ */
+export function getDepotKeysCacheInfo(): {
+    hasMemoryCache: boolean;
+    memoryCount: number;
+    memoryCacheAge: string;
+    hasFileCache: boolean;
+    fileCount: number;
+    fileCacheAge: string;
+} {
+    const info = {
+        hasMemoryCache: depotKeysCache !== null,
+        memoryCount: depotKeysCache ? Object.keys(depotKeysCache).length : 0,
+        memoryCacheAge: '',
+        hasFileCache: false,
+        fileCount: 0,
+        fileCacheAge: '',
+    };
+
+    // 内存缓存年龄
+    if (depotKeysCache && depotKeysCacheTime > 0) {
+        const ageMin = ((Date.now() - depotKeysCacheTime) / (1000 * 60)).toFixed(1);
+        info.memoryCacheAge = `${ageMin} 分钟前`;
+    }
+
+    // 本地文件缓存
+    try {
+        const cachePath = getCachePath();
+        if (fs.existsSync(cachePath)) {
+            info.hasFileCache = true;
+            const stat = fs.statSync(cachePath);
+            const ageHours = ((Date.now() - stat.mtimeMs) / (1000 * 60 * 60)).toFixed(1);
+            info.fileCacheAge = `${ageHours} 小时前`;
+            try {
+                const data = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+                if (typeof data === 'object' && data !== null) {
+                    info.fileCount = Object.keys(data).length;
+                }
+            } catch { /* ignore */ }
+        }
+    } catch { /* ignore */ }
+
+    return info;
+}
+
+/**
  * 保存 DepotKeys 到本地缓存
  */
 function saveDepotKeysToCache(keys: DepotKeysMap): void {

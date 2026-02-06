@@ -160,7 +160,46 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
         }
     });
 
-    // TODO: 在这里添加你的自定义 API 路由
+    // ==================== 缓存管理接口（无认证）====================
+
+    // 获取缓存状态
+    router.getNoAuth('/cache/status', async (_req: any, res: any) => {
+        try {
+            const { getDepotKeysCacheInfo } = await import('./manifesthub-service');
+            const info = getDepotKeysCacheInfo();
+            res.json({ code: 0, data: info });
+        } catch (err) {
+            pluginState.log('error', '获取缓存状态失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
+    // 清除缓存
+    router.postNoAuth('/cache/clear', async (_req: any, res: any) => {
+        try {
+            const { clearDepotKeysCache } = await import('./manifesthub-service');
+            clearDepotKeysCache();
+            pluginState.log('info', '[WebUI] DepotKeys 缓存已清除');
+            res.json({ code: 0, message: '缓存已清除' });
+        } catch (err) {
+            pluginState.log('error', '清除缓存失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
+    // 刷新缓存
+    router.postNoAuth('/cache/refresh', async (_req: any, res: any) => {
+        try {
+            const { getDepotKeys } = await import('./manifesthub-service');
+            const keys = await getDepotKeys(true);
+            const count = Object.keys(keys).length;
+            pluginState.log('info', `[WebUI] DepotKeys 缓存已刷新，共 ${count} 个密钥`);
+            res.json({ code: 0, data: { count }, message: `缓存已刷新，共 ${count} 个密钥` });
+        } catch (err) {
+            pluginState.log('error', '刷新缓存失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
 
     pluginState.logDebug('API 路由注册完成');
 }

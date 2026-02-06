@@ -2,11 +2,48 @@ import { useState, useEffect, useCallback } from 'react'
 import { noAuthFetch } from '../utils/api'
 import { showToast } from '../hooks/useToast'
 import type { PluginConfig } from '../types'
-import { IconKey, IconDatabase, IconTerminal } from '../components/icons'
+import { IconKey, IconDatabase, IconTerminal, IconRefresh } from '../components/icons'
 
 export default function ConfigPage() {
     const [config, setConfig] = useState<PluginConfig | null>(null)
     const [saving, setSaving] = useState(false)
+    const [cacheLoading, setCacheLoading] = useState(false)
+    const [cacheInfo, setCacheInfo] = useState<{ hasMemoryCache: boolean; memoryCount: number; memoryCacheAge: string; hasFileCache: boolean; fileCount: number; fileCacheAge: string } | null>(null)
+
+    const fetchCacheInfo = useCallback(async () => {
+        try {
+            const res = await noAuthFetch<any>('/cache/status')
+            if (res.code === 0 && res.data) setCacheInfo(res.data)
+        } catch { /* ignore */ }
+    }, [])
+
+    const handleCacheClear = useCallback(async () => {
+        setCacheLoading(true)
+        try {
+            const res = await noAuthFetch('/cache/clear', { method: 'POST' })
+            if (res.code === 0) {
+                showToast('缓存已清除', 'success')
+                fetchCacheInfo()
+            } else {
+                showToast(res.message || '清除失败', 'error')
+            }
+        } catch { showToast('清除缓存失败', 'error') }
+        finally { setCacheLoading(false) }
+    }, [fetchCacheInfo])
+
+    const handleCacheRefresh = useCallback(async () => {
+        setCacheLoading(true)
+        try {
+            const res = await noAuthFetch<{ count: number }>('/cache/refresh', { method: 'POST' })
+            if (res.code === 0) {
+                showToast(res.message || `缓存已刷新，共 ${res.data?.count} 个密钥`, 'success')
+                fetchCacheInfo()
+            } else {
+                showToast(res.message || '刷新失败', 'error')
+            }
+        } catch { showToast('刷新缓存失败', 'error') }
+        finally { setCacheLoading(false) }
+    }, [fetchCacheInfo])
 
     const fetchConfig = useCallback(async () => {
         try {
@@ -15,7 +52,7 @@ export default function ConfigPage() {
         } catch { showToast('获取配置失败', 'error') }
     }, [])
 
-    useEffect(() => { fetchConfig() }, [fetchConfig])
+    useEffect(() => { fetchConfig(); fetchCacheInfo() }, [fetchConfig, fetchCacheInfo])
 
     const saveConfig = useCallback(async (update: Partial<PluginConfig>) => {
         if (!config) return
@@ -173,6 +210,41 @@ export default function ConfigPage() {
                         type="number"
                         onChange={(v) => updateManifestHub('cacheExpireHours', Number(v) || 0)}
                     />
+
+                    {/* 缓存管理 */}
+                    <div className="pt-4 border-t border-gray-100 dark:border-gray-700/50">
+                        <div className="flex items-center justify-between mb-3">
+                            <div>
+                                <div className="text-sm font-medium text-gray-800 dark:text-gray-200">DepotKeys 缓存管理</div>
+                                <div className="text-xs text-gray-400 mt-0.5">
+                                    {cacheInfo ? (
+                                        cacheInfo.hasMemoryCache
+                                            ? `内存: ${cacheInfo.memoryCount} 个密钥 (${cacheInfo.memoryCacheAge})${cacheInfo.hasFileCache ? ` · 文件: ${cacheInfo.fileCount} 个 (${cacheInfo.fileCacheAge})` : ''}`
+                                            : cacheInfo.hasFileCache
+                                                ? `文件缓存: ${cacheInfo.fileCount} 个密钥 (${cacheInfo.fileCacheAge})`
+                                                : '暂无缓存'
+                                    ) : '加载中...'}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                className="btn-secondary text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 disabled:opacity-50"
+                                disabled={cacheLoading}
+                                onClick={handleCacheRefresh}
+                            >
+                                <IconRefresh size={13} className={cacheLoading ? 'animate-spin' : ''} />
+                                刷新缓存
+                            </button>
+                            <button
+                                className="btn-secondary text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-red-500 dark:text-red-400 disabled:opacity-50"
+                                disabled={cacheLoading}
+                                onClick={handleCacheClear}
+                            >
+                                清除缓存
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
