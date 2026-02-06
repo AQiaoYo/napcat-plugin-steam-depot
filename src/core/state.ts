@@ -9,10 +9,10 @@ import type { NapCatPluginContext, PluginLogger } from 'napcat-types/napcat-oneb
 import type { ActionMap } from 'napcat-types/napcat-onebot/action/index';
 import type { NetworkAdapterConfig } from 'napcat-types/napcat-onebot/config/config';
 import { DEFAULT_CONFIG, getDefaultConfig } from '../config';
-import type { PluginConfig, GroupConfig } from '../types';
+import type { PluginConfig, GroupConfig, RepoConfig, RepoType, ManifestHubConfig, DepotKeySource } from '../types';
 
-/** 日志前缀 - 修改为你的插件名称 */
-const LOG_TAG = '[Plugin]';
+/** 日志前缀 */
+const LOG_TAG = '[SteamDepot]';
 
 /** 类型守卫：判断是否为对象 */
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -38,6 +38,48 @@ function sanitizeConfig(raw: unknown): PluginConfig {
         out.debug = (raw as Record<string, unknown>)['debug'] as boolean;
     }
 
+    // commandPrefix
+    if (typeof (raw as Record<string, unknown>)['commandPrefix'] === 'string') {
+        out.commandPrefix = (raw as Record<string, unknown>)['commandPrefix'] as string;
+    }
+
+    // githubToken
+    if (typeof (raw as Record<string, unknown>)['githubToken'] === 'string') {
+        out.githubToken = (raw as Record<string, unknown>)['githubToken'] as string;
+    }
+
+    // useGithubToken
+    if (typeof (raw as Record<string, unknown>)['useGithubToken'] === 'boolean') {
+        out.useGithubToken = (raw as Record<string, unknown>)['useGithubToken'] as boolean;
+    }
+
+    // tempDir
+    if (typeof (raw as Record<string, unknown>)['tempDir'] === 'string') {
+        out.tempDir = (raw as Record<string, unknown>)['tempDir'] as string;
+    }
+
+    // repositories
+    const rawRepos = (raw as Record<string, unknown>)['repositories'];
+    if (Array.isArray(rawRepos)) {
+        out.repositories = [];
+        for (const repo of rawRepos) {
+            if (isObject(repo)) {
+                const name = (repo as Record<string, unknown>)['name'];
+                const type = (repo as Record<string, unknown>)['type'];
+                const enabled = (repo as Record<string, unknown>)['enabled'];
+
+                if (typeof name === 'string' &&
+                    (type === 'Encrypted' || type === 'Decrypted' || type === 'Branch')) {
+                    out.repositories.push({
+                        name,
+                        type: type as RepoType,
+                        enabled: typeof enabled === 'boolean' ? enabled : false
+                    });
+                }
+            }
+        }
+    }
+
     // groupConfigs
     const rawGroupConfigs = (raw as Record<string, unknown>)['groupConfigs'];
     if (isObject(rawGroupConfigs)) {
@@ -54,7 +96,26 @@ function sanitizeConfig(raw: unknown): PluginConfig {
         }
     }
 
-    // TODO: 在这里添加你的配置项清洗逻辑
+    // manifestHub
+    const rawManifestHub = (raw as Record<string, unknown>)['manifestHub'];
+    if (isObject(rawManifestHub)) {
+        const mh = rawManifestHub as Record<string, unknown>;
+        if (typeof mh['enabled'] === 'boolean') {
+            out.manifestHub.enabled = mh['enabled'] as boolean;
+        }
+        if (mh['depotKeySource'] === 'SAC' || mh['depotKeySource'] === 'Sudama') {
+            out.manifestHub.depotKeySource = mh['depotKeySource'] as DepotKeySource;
+        }
+        if (typeof mh['includeDLC'] === 'boolean') {
+            out.manifestHub.includeDLC = mh['includeDLC'] as boolean;
+        }
+        if (typeof mh['setManifestId'] === 'boolean') {
+            out.manifestHub.setManifestId = mh['setManifestId'] as boolean;
+        }
+        if (typeof mh['cacheExpireHours'] === 'number') {
+            out.manifestHub.cacheExpireHours = mh['cacheExpireHours'] as number;
+        }
+    }
 
     return out;
 }
