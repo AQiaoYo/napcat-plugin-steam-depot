@@ -48,31 +48,27 @@ const plugin_init = async (ctx: NapCatPluginContext) => {
 
         // 注册 WebUI 路由
         try {
-            const base = (ctx as any).router;
-
-            // 插件信息脚本（必须在静态目录之前注册）
-            if (base && base.get) {
-                base.get('/static/plugin-info.js', (_req: any, res: any) => {
-                    try {
-                        res.type('application/javascript');
-                        res.send(`window.__PLUGIN_NAME__ = ${JSON.stringify(ctx.pluginName)};`);
-                    } catch (e) {
-                        res.status(500).send('// failed to generate plugin-info');
-                    }
-                });
-            }
+            const router = (ctx as any).router;
 
             // 静态资源目录
-            if (base && base.static) {
-                base.static('/static', 'webui');
-            }
+            if (router && router.static) router.static('/static', 'webui');
 
-            // 注册 API 路由
+            // 插件信息脚本（用于前端获取插件名）
+            router.get('/static/plugin-info.js', (_req: any, res: any) => {
+                try {
+                    res.type('application/javascript');
+                    res.send(`window.__PLUGIN_NAME__ = ${JSON.stringify(ctx.pluginName)};`);
+                } catch (e) {
+                    res.status(500).send('// failed to generate plugin-info');
+                }
+            });
+
+            // 注册 API 路由（无认证）
             registerApiRoutes(ctx);
 
             // 注册仪表盘页面
-            if (base && base.page) {
-                base.page({
+            if (router && router.page) {
+                router.page({
                     path: 'steam-depot',
                     title: 'Steam Depot',
                     icon: '🎮',

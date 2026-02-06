@@ -41,138 +41,124 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
         return;
     }
 
-    // ==================== 基础接口 ====================
+    // ==================== 基础接口（无认证，供 WebUI 页面调用）====================
 
     // 插件信息
-    if (router.get) {
-        router.get('/info', (_req: any, res: any) => {
-            res.json({
-                code: 0,
-                data: { pluginName: ctx.pluginName }
-            });
+    router.getNoAuth('/info', (_req: any, res: any) => {
+        res.json({
+            code: 0,
+            data: { pluginName: ctx.pluginName }
         });
-    }
+    });
 
     // 状态接口
-    if (router.get) {
-        router.get('/status', (_req: any, res: any) => {
-            res.json({
-                code: 0,
-                data: {
-                    pluginName: pluginState.pluginName,
-                    uptime: pluginState.getUptime(),
-                    uptimeFormatted: pluginState.getUptimeFormatted(),
-                    config: pluginState.getConfig(),
-                    stats: pluginState.stats
-                }
-            });
+    router.getNoAuth('/status', (_req: any, res: any) => {
+        res.json({
+            code: 0,
+            data: {
+                pluginName: pluginState.pluginName,
+                uptime: pluginState.getUptime(),
+                uptimeFormatted: pluginState.getUptimeFormatted(),
+                config: pluginState.getConfig(),
+                stats: pluginState.stats
+            }
         });
-    }
+    });
 
-    // ==================== 配置接口 ====================
+    // ==================== 配置接口（无认证）====================
 
     // 获取配置
-    if (router.get) {
-        router.get('/config', (_req: any, res: any) => {
-            res.json({ code: 0, data: pluginState.getConfig() });
-        });
-    }
+    router.getNoAuth('/config', (_req: any, res: any) => {
+        res.json({ code: 0, data: pluginState.getConfig() });
+    });
 
     // 保存配置
-    if (router.post) {
-        router.post('/config', async (req: any, res: any) => {
-            try {
-                const body = await parseBody(req);
-                pluginState.setConfig(ctx, body);
-                pluginState.log('info', '配置已保存');
-                res.json({ code: 0, message: 'ok' });
-            } catch (err) {
-                pluginState.log('error', '保存配置失败:', err);
-                res.status(500).json({ code: -1, message: String(err) });
-            }
-        });
-    }
+    router.postNoAuth('/config', async (req: any, res: any) => {
+        try {
+            const body = await parseBody(req);
+            pluginState.setConfig(ctx, body);
+            pluginState.log('info', '配置已保存');
+            res.json({ code: 0, message: 'ok' });
+        } catch (err) {
+            pluginState.log('error', '保存配置失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
 
-    // ==================== 群管理接口 ====================
+    // ==================== 群管理接口（无认证）====================
 
     // 获取群列表
-    if (router.get) {
-        router.get('/groups', async (_req: any, res: any) => {
-            try {
-                const groups: any[] = await ctx.actions.call(
-                    'get_group_list',
-                    {},
-                    ctx.adapterName,
-                    ctx.pluginManager.config
-                );
-                const config = pluginState.getConfig();
+    router.getNoAuth('/groups', async (_req: any, res: any) => {
+        try {
+            const groups: any[] = await ctx.actions.call(
+                'get_group_list',
+                {},
+                ctx.adapterName,
+                ctx.pluginManager.config
+            );
+            const config = pluginState.getConfig();
 
-                // 为每个群添加配置信息
-                const groupsWithConfig = (groups || []).map((group: any) => {
-                    const groupId = String(group.group_id);
-                    const groupConfig = config.groupConfigs?.[groupId] || {};
-                    return {
-                        ...group,
-                        enabled: groupConfig.enabled !== false
-                    };
-                });
+            // 为每个群添加配置信息
+            const groupsWithConfig = (groups || []).map((group: any) => {
+                const groupId = String(group.group_id);
+                const groupConfig = config.groupConfigs?.[groupId] || {};
+                return {
+                    ...group,
+                    enabled: groupConfig.enabled !== false
+                };
+            });
 
-                res.json({ code: 0, data: groupsWithConfig });
-            } catch (e) {
-                pluginState.log('error', '获取群列表失败:', e);
-                res.status(500).json({ code: -1, message: String(e) });
-            }
-        });
-    }
+            res.json({ code: 0, data: groupsWithConfig });
+        } catch (e) {
+            pluginState.log('error', '获取群列表失败:', e);
+            res.status(500).json({ code: -1, message: String(e) });
+        }
+    });
 
     // 更新群配置
-    if (router.post) {
-        router.post('/groups/:id/config', async (req: any, res: any) => {
-            try {
-                const groupId = String(req.params?.id || '');
-                if (!groupId) {
-                    return res.status(400).json({ code: -1, message: '缺少群 ID' });
-                }
-
-                const body = await parseBody(req);
-                const { enabled } = body;
-
-                pluginState.updateGroupConfig(ctx, groupId, { enabled: Boolean(enabled) });
-                pluginState.log('info', `群 ${groupId} 配置已更新: enabled=${enabled}`);
-                res.json({ code: 0, message: 'ok' });
-            } catch (err) {
-                pluginState.log('error', '更新群配置失败:', err);
-                res.status(500).json({ code: -1, message: String(err) });
+    router.postNoAuth('/groups/:id/config', async (req: any, res: any) => {
+        try {
+            const groupId = String(req.params?.id || '');
+            if (!groupId) {
+                return res.status(400).json({ code: -1, message: '缺少群 ID' });
             }
-        });
-    }
+
+            const body = await parseBody(req);
+            const { enabled } = body;
+
+            pluginState.updateGroupConfig(ctx, groupId, { enabled: Boolean(enabled) });
+            pluginState.log('info', `群 ${groupId} 配置已更新: enabled=${enabled}`);
+            res.json({ code: 0, message: 'ok' });
+        } catch (err) {
+            pluginState.log('error', '更新群配置失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
 
     // 批量更新群配置
-    if (router.post) {
-        router.post('/groups/bulk-config', async (req: any, res: any) => {
-            try {
-                const body = await parseBody(req);
-                const { enabled, groupIds } = body;
+    router.postNoAuth('/groups/bulk-config', async (req: any, res: any) => {
+        try {
+            const body = await parseBody(req);
+            const { enabled, groupIds } = body;
 
-                if (typeof enabled !== 'boolean' || !Array.isArray(groupIds)) {
-                    return res.status(400).json({ code: -1, message: '参数错误' });
-                }
-
-                const currentGroupConfigs = { ...(pluginState.config.groupConfigs || {}) };
-                for (const groupId of groupIds) {
-                    const gid = String(groupId);
-                    currentGroupConfigs[gid] = { ...currentGroupConfigs[gid], enabled };
-                }
-
-                pluginState.setConfig(ctx, { groupConfigs: currentGroupConfigs });
-                pluginState.log('info', `批量更新群配置完成 | 数量: ${groupIds.length}, enabled=${enabled}`);
-                res.json({ code: 0, message: 'ok' });
-            } catch (err) {
-                pluginState.log('error', '批量更新群配置失败:', err);
-                res.status(500).json({ code: -1, message: String(err) });
+            if (typeof enabled !== 'boolean' || !Array.isArray(groupIds)) {
+                return res.status(400).json({ code: -1, message: '参数错误' });
             }
-        });
-    }
+
+            const currentGroupConfigs = { ...(pluginState.config.groupConfigs || {}) };
+            for (const groupId of groupIds) {
+                const gid = String(groupId);
+                currentGroupConfigs[gid] = { ...currentGroupConfigs[gid], enabled };
+            }
+
+            pluginState.setConfig(ctx, { groupConfigs: currentGroupConfigs });
+            pluginState.log('info', `批量更新群配置完成 | 数量: ${groupIds.length}, enabled=${enabled}`);
+            res.json({ code: 0, message: 'ok' });
+        } catch (err) {
+            pluginState.log('error', '批量更新群配置失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
 
     // TODO: 在这里添加你的自定义 API 路由
 

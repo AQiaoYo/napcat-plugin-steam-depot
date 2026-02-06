@@ -19,15 +19,18 @@ export default function ToastContainer() {
                     <div
                         key={toast.id}
                         className={`
-                            px-4 py-2.5 rounded-lg pointer-events-auto
+                            px-4 py-2.5 rounded-lg pointer-events-auto relative overflow-hidden
                             flex items-center gap-2 min-w-[180px] max-w-[360px]
                             text-sm font-medium shadow-lg
                             ${style.bg}
                             ${toast.hiding ? 'toast-exit' : 'toast-enter'}
                         `}
                     >
-                        {style.icon}
-                        {toast.message}
+                        <span className="flex items-center gap-2 relative z-10">
+                            {style.icon}
+                            {toast.message}
+                        </span>
+                        {!toast.hiding && <div className="toast-progress" />}
                     </div>
                 )
             })}

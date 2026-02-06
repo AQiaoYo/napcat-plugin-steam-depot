@@ -46,7 +46,7 @@ function App() {
     }
 
     return (
-        <div className="flex h-screen overflow-hidden bg-[#f5f6f8] dark:bg-[#0e1016] text-gray-800 dark:text-gray-200 transition-colors duration-200">
+        <div className="flex h-screen overflow-hidden bg-[#f8f9fa] dark:bg-[#18191C] text-gray-800 dark:text-gray-200 transition-colors duration-300">
             <ToastContainer />
             <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
 
@@ -60,7 +60,7 @@ function App() {
                         currentPage={currentPage}
                     />
                     <div className="px-4 md:px-8 pb-8">
-                        <div className="page-enter">
+                        <div key={currentPage} className="page-enter">
                             {renderPage()}
                         </div>
                     </div>

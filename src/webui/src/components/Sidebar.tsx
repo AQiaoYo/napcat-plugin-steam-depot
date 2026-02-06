@@ -15,10 +15,10 @@ const menuItems: { id: PageId; label: string; icon: React.ReactNode }[] = [
 
 export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
     return (
-        <aside className="w-60 flex-shrink-0 bg-white dark:bg-[#14161c] border-r border-gray-200 dark:border-gray-800/60 flex flex-col">
+        <aside className="w-60 flex-shrink-0 bg-white dark:bg-[#1a1b1d] border-r border-gray-200 dark:border-gray-800 flex flex-col">
             {/* Logo */}
             <div className="px-5 py-6 flex items-center gap-3">
-                <div className="w-8 h-8 flex items-center justify-center bg-steam-blue rounded-lg text-steam-accent">
+                <div className="sidebar-logo w-8 h-8 flex items-center justify-center bg-steam-blue rounded-lg text-steam-accent">
                     <IconSteam size={18} />
                 </div>
                 <div>
@@ -28,14 +28,14 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
             </div>
 
             {/* Nav */}
-            <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
+            <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto nav-stagger">
                 {menuItems.map((item) => (
                     <div
                         key={item.id}
                         className={`sidebar-item ${currentPage === item.id ? 'active' : ''}`}
                         onClick={() => onPageChange(item.id)}
                     >
-                        {item.icon}
+                        <span className="sidebar-icon">{item.icon}</span>
                         <span>{item.label}</span>
                     </div>
                 ))}
@@ -54,8 +54,8 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
                 </a>
             </div>
 
-            <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800/60">
-                <div className="flex items-center justify-center w-full py-2 rounded-lg text-gray-400 bg-gray-50 dark:bg-white/[0.03] cursor-default text-xs gap-2">
+            <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-800">
+                <div className="flex items-center justify-center w-full py-2 rounded-lg text-gray-500 bg-gray-50 dark:bg-gray-800/50 cursor-default text-xs gap-2">
                     <IconSun size={14} className="opacity-60" />
                     <span>跟随系统主题</span>
                 </div>
