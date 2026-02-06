@@ -9,7 +9,7 @@ import type { OB11Message } from 'napcat-types/napcat-onebot';
 import type { NapCatPluginContext } from 'napcat-types/napcat-onebot/network/plugin-manger';
 import { pluginState } from '../core/state';
 import { downloadSteamDepot, cleanupTempDir, getFileSizeString } from '../services/steam-depot-service';
-import { fetchFromManifestHub, clearDepotKeysCache, getDepotKeys } from '../services/manifesthub-service';
+import { fetchFromManifestHub } from '../services/manifesthub-service';
 
 // ==================== CD 冷却管理 ====================
 
@@ -488,51 +488,6 @@ async function handleInfoCommand(ctx: NapCatPluginContext, groupId: number, appI
 }
 
 /**
- * 处理 cache 命令 - 管理 DepotKeys 缓存
- */
-async function handleCacheCommand(ctx: NapCatPluginContext, groupId: number, action: string, messageId: number, selfId: string): Promise<void> {
-    const botNickname = 'Steam Depot';
-
-    if (action === 'clear' || action === '清除') {
-        clearDepotKeysCache();
-        const forwardNodes: ForwardNode[] = [
-            buildForwardNode(selfId, botNickname, [textSegment(`✅ DepotKeys 缓存已清除`)])
-        ];
-        await sendGroupForwardMsg(ctx, groupId, forwardNodes);
-    } else if (action === 'refresh' || action === '刷新') {
-        // 贴一个"闪光"表情表示开始处理
-        if (messageId) {
-            await setMsgEmojiLike(ctx, messageId, '10024');
-        }
-
-        try {
-            const keys = await getDepotKeys(true);
-            const forwardNodes: ForwardNode[] = [
-                buildForwardNode(selfId, botNickname, [textSegment(`✅ DepotKeys 缓存已刷新，共 ${Object.keys(keys).length} 个密钥`)])
-            ];
-            await sendGroupForwardMsg(ctx, groupId, forwardNodes);
-
-            // 贴一个"ok"表情表示完成
-            if (messageId) {
-                await setMsgEmojiLike(ctx, messageId, '124');
-            }
-        } catch (error) {
-            await sendGroupMessage(ctx, groupId, [
-                replySegment(messageId),
-                textSegment(`❌ 刷新失败: ${error}`)
-            ]);
-        }
-    } else {
-        const forwardNodes: ForwardNode[] = [
-            buildForwardNode(selfId, botNickname, [textSegment(
-                `📦 缓存管理命令:\n${pluginState.config.commandPrefix} cache clear - 清除缓存\n${pluginState.config.commandPrefix} cache refresh - 刷新缓存`
-            )])
-        ];
-        await sendGroupForwardMsg(ctx, groupId, forwardNodes);
-    }
-}
-
-/**
  * 处理帮助命令
  */
 async function handleHelpCommand(ctx: NapCatPluginContext, groupId: number, prefix: string, selfId: string): Promise<void> {
@@ -543,7 +498,7 @@ async function handleHelpCommand(ctx: NapCatPluginContext, groupId: number, pref
     forwardNodes.push(buildForwardNode(selfId, botNickname, [textSegment(`🎮 Steam Depot 下载器 帮助`)]));
 
     // 节点2：使用方法
-    const usageText = `📌 使用方法:\n${prefix} <AppID> - 下载指定 AppID 的游戏数据\n${prefix} info <AppID> - 查询密钥和清单信息（不下载）\n${prefix} cache clear - 清除 DepotKeys 缓存\n${prefix} cache refresh - 刷新 DepotKeys 缓存`;
+    const usageText = `📌 使用方法:\n${prefix} <AppID> - 下载指定 AppID 的游戏数据\n${prefix} info <AppID> - 查询密钥和清单信息（不下载）`;
     forwardNodes.push(buildForwardNode(selfId, botNickname, [textSegment(usageText)]));
 
     // 节点3：示例
@@ -601,9 +556,6 @@ export async function handleMessage(ctx: NapCatPluginContext, event: OB11Message
         } else if (command === 'info' && args.length > 0 && /^\d+$/.test(args[0])) {
             // info 命令：查询密钥和清单信息
             await handleInfoCommand(ctx, groupId, args[0], messageId, selfId);
-        } else if (command === 'cache') {
-            // cache 命令：管理缓存
-            await handleCacheCommand(ctx, groupId, args[0] || '', messageId, selfId);
         } else if (command === '' && args.length === 0) {
             // 只输入了前缀，显示帮助
             await handleHelpCommand(ctx, groupId, prefix, selfId);
