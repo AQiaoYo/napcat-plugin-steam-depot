@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import type { PluginStatus } from '../types'
 import { IconPower, IconClock, IconActivity, IconRefresh, IconDownload, IconDatabase, IconTerminal } from '../components/icons'
 
@@ -6,16 +7,69 @@ interface StatusPageProps {
     onRefresh: () => void
 }
 
+/** 将毫秒格式化为可读时长 */
+function formatUptime(uptimeMs: number): string {
+    const seconds = Math.floor(uptimeMs / 1000)
+    const days = Math.floor(seconds / 86400)
+    const hours = Math.floor((seconds % 86400) / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const secs = seconds % 60
+
+    if (days > 0) {
+        return `${days}天 ${hours}小时 ${minutes}分 ${secs}秒`
+    } else if (hours > 0) {
+        return `${hours}小时 ${minutes}分 ${secs}秒`
+    } else if (minutes > 0) {
+        return `${minutes}分 ${secs}秒`
+    } else {
+        return `${secs}秒`
+    }
+}
+
 export default function StatusPage({ status, onRefresh }: StatusPageProps) {
+    const [displayUptime, setDisplayUptime] = useState<string>('-')
+    // 记录上次同步时的基准信息
+    const [syncInfo, setSyncInfo] = useState<{ baseUptime: number; syncTime: number } | null>(null)
+
+    // 当 status.uptime 变化时同步基准值
+    useEffect(() => {
+        if (status?.uptime !== undefined && status.uptime > 0) {
+            setSyncInfo({
+                baseUptime: status.uptime,
+                syncTime: Date.now()
+            })
+        }
+    }, [status?.uptime])
+
+    // 每秒更新显示
+    useEffect(() => {
+        if (!syncInfo) {
+            setDisplayUptime('-')
+            return
+        }
+
+        const updateUptime = () => {
+            const elapsed = Date.now() - syncInfo.syncTime
+            setDisplayUptime(formatUptime(syncInfo.baseUptime + elapsed))
+        }
+
+        updateUptime()
+        const interval = setInterval(updateUptime, 1000)
+        return () => clearInterval(interval)
+    }, [syncInfo])
+
     if (!status) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <div className="text-gray-400 text-sm">正在获取插件状态...</div>
+            <div className="flex items-center justify-center h-64 empty-state">
+                <div className="flex flex-col items-center gap-3">
+                    <div className="loading-spinner text-primary" />
+                    <div className="text-gray-400 text-sm">正在获取插件状态...</div>
+                </div>
             </div>
         )
     }
 
-    const { config, stats, uptimeFormatted } = status
+    const { config, stats } = status
 
     const statCards = [
         {
@@ -27,10 +81,10 @@ export default function StatusPage({ status, onRefresh }: StatusPageProps) {
         },
         {
             label: '运行时长',
-            value: uptimeFormatted,
+            value: displayUptime,
             icon: <IconClock size={18} />,
-            color: 'text-brand-500',
-            bg: 'bg-brand-500/10',
+            color: 'text-primary',
+            bg: 'bg-primary/10',
         },
         {
             label: '今日处理',
@@ -51,12 +105,12 @@ export default function StatusPage({ status, onRefresh }: StatusPageProps) {
     return (
         <div className="space-y-6">
             {/* 统计卡片 */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-children">
                 {statCards.map((card) => (
-                    <div key={card.label} className="card p-4">
+                    <div key={card.label} className="card p-4 hover-lift">
                         <div className="flex items-center justify-between mb-3">
                             <span className="text-xs text-gray-400 font-medium">{card.label}</span>
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${card.bg} ${card.color}`}>
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${card.bg} ${card.color} transition-transform duration-300 hover:scale-110`}>
                                 {card.icon}
                             </div>
                         </div>
@@ -66,8 +120,8 @@ export default function StatusPage({ status, onRefresh }: StatusPageProps) {
             </div>
 
             {/* 配置概览 */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="card p-5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 stagger-children">
+                <div className="card p-5 hover-lift">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                             <IconTerminal size={16} className="text-gray-400" />
@@ -87,7 +141,7 @@ export default function StatusPage({ status, onRefresh }: StatusPageProps) {
                     </div>
                 </div>
 
-                <div className="card p-5">
+                <div className="card p-5 hover-lift">
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
                         <IconDatabase size={16} className="text-gray-400" />
                         ManifestHub 配置
@@ -103,10 +157,10 @@ export default function StatusPage({ status, onRefresh }: StatusPageProps) {
             </div>
 
             {/* 仓库概览 */}
-            <div className="card p-5">
+            <div className="card p-5 animate-fade-in-up hover-lift">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">仓库列表概览</h3>
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-sm stagger-rows">
                         <thead>
                             <tr className="text-left text-xs text-gray-400 border-b border-gray-100 dark:border-gray-800">
                                 <th className="pb-2 font-medium">仓库名称</th>
@@ -120,8 +174,8 @@ export default function StatusPage({ status, onRefresh }: StatusPageProps) {
                                     <td className="py-2.5 font-mono text-xs text-gray-700 dark:text-gray-300">{repo.name}</td>
                                     <td className="py-2.5">
                                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${repo.type === 'Branch' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' :
-                                                repo.type === 'Decrypted' ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' :
-                                                    'bg-amber-100 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'
+                                            repo.type === 'Decrypted' ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' :
+                                                'bg-amber-100 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'
                                             }`}>
                                             {repo.type}
                                         </span>

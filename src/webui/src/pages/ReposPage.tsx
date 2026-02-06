@@ -82,8 +82,11 @@ export default function ReposPage() {
 
     if (!config) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <div className="text-gray-400 text-sm">加载中...</div>
+            <div className="flex items-center justify-center h-64 empty-state">
+                <div className="flex flex-col items-center gap-3">
+                    <div className="loading-spinner text-primary" />
+                    <div className="text-gray-400 text-sm">加载中...</div>
+                </div>
             </div>
         )
     }
@@ -105,7 +108,7 @@ export default function ReposPage() {
 
             {/* 添加表单 */}
             {adding && (
-                <div className="card p-4 border-brand-500/30 border-dashed">
+                <div className="card p-4 border-primary/30 border-dashed card-expand-enter">
                     <div className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-3">添加新仓库</div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <input
@@ -138,9 +141,9 @@ export default function ReposPage() {
             )}
 
             {/* 仓库列表 */}
-            <div className="space-y-2">
+            <div className="space-y-2 stagger-children">
                 {repos.map((repo, idx) => (
-                    <div key={idx} className="card p-4 flex items-center gap-4">
+                    <div key={idx} className="card p-4 flex items-center gap-4 hover-lift">
                         {editIdx === idx ? (
                             /* 编辑模式 */
                             <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -178,21 +181,21 @@ export default function ReposPage() {
                                     <div className="text-sm font-mono text-gray-800 dark:text-gray-200 truncate">{repo.name}</div>
                                 </div>
                                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${repo.type === 'Branch' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' :
-                                        repo.type === 'Decrypted' ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' :
-                                            'bg-amber-100 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'
+                                    repo.type === 'Decrypted' ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' :
+                                        'bg-amber-100 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'
                                     }`}>
                                     {repo.type}
                                 </span>
                                 <div className="flex gap-1 flex-shrink-0">
                                     <button
-                                        className="p-1.5 rounded-md text-gray-400 hover:text-brand-500 hover:bg-brand-500/10 transition-colors"
+                                        className="icon-btn p-1.5 rounded-md text-gray-400 hover:text-primary hover:bg-primary/10"
                                         onClick={() => startEdit(idx)}
                                         title="编辑"
                                     >
                                         <IconEdit size={14} />
                                     </button>
                                     <button
-                                        className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                                        className="icon-btn p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-500/10"
                                         onClick={() => deleteRepo(idx)}
                                         title="删除"
                                     >
@@ -205,7 +208,7 @@ export default function ReposPage() {
                 ))}
 
                 {repos.length === 0 && (
-                    <div className="card p-8 text-center">
+                    <div className="card p-8 text-center empty-state">
                         <p className="text-gray-400 text-sm">暂无仓库配置</p>
                         <p className="text-gray-400 text-xs mt-1">点击上方按钮添加仓库</p>
                     </div>

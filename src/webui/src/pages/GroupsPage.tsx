@@ -89,8 +89,11 @@ export default function GroupsPage() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <div className="text-gray-400 text-sm">加载群列表中...</div>
+            <div className="flex items-center justify-center h-64 empty-state">
+                <div className="flex flex-col items-center gap-3">
+                    <div className="loading-spinner text-primary" />
+                    <div className="text-gray-400 text-sm">加载群列表中...</div>
+                </div>
             </div>
         )
     }
@@ -98,7 +101,7 @@ export default function GroupsPage() {
     return (
         <div className="space-y-4">
             {/* 工具栏 */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 animate-fade-in-down">
                 <div className="relative flex-1 w-full sm:max-w-xs">
                     <IconSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
@@ -115,11 +118,11 @@ export default function GroupsPage() {
                     </button>
                     {selected.size > 0 && (
                         <>
-                            <button className="btn btn-primary text-xs" onClick={() => bulkToggle(true)}>
+                            <button className="btn btn-primary text-xs animate-scale-in" onClick={() => bulkToggle(true)}>
                                 <IconCheck size={13} />
                                 批量启用 ({selected.size})
                             </button>
-                            <button className="btn btn-danger text-xs" onClick={() => bulkToggle(false)}>
+                            <button className="btn btn-danger text-xs animate-scale-in" onClick={() => bulkToggle(false)}>
                                 <IconX size={13} />
                                 批量禁用 ({selected.size})
                             </button>
@@ -135,8 +138,8 @@ export default function GroupsPage() {
             </p>
 
             {/* 群列表 */}
-            <div className="card overflow-hidden">
-                <table className="w-full text-sm">
+            <div className="card overflow-hidden animate-fade-in-up">
+                <table className="w-full text-sm stagger-rows">
                     <thead>
                         <tr className="text-left text-xs text-gray-400 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-white/[0.02]">
                             <th className="py-2.5 px-4 font-medium w-10">
@@ -189,7 +192,7 @@ export default function GroupsPage() {
                 </table>
 
                 {filtered.length === 0 && (
-                    <div className="py-12 text-center">
+                    <div className="py-12 text-center empty-state">
                         <p className="text-gray-400 text-sm">{search ? '没有匹配的群' : '暂无群数据'}</p>
                     </div>
                 )}

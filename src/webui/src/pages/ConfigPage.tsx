@@ -52,16 +52,19 @@ export default function ConfigPage() {
 
     if (!config) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <div className="text-gray-400 text-sm">加载配置中...</div>
+            <div className="flex items-center justify-center h-64 empty-state">
+                <div className="flex flex-col items-center gap-3">
+                    <div className="loading-spinner text-primary" />
+                    <div className="text-gray-400 text-sm">加载配置中...</div>
+                </div>
             </div>
         )
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 stagger-children">
             {/* 基础配置 */}
-            <div className="card p-5">
+            <div className="card p-5 hover-lift">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-5">
                     <IconTerminal size={16} className="text-gray-400" />
                     基础配置
@@ -102,7 +105,7 @@ export default function ConfigPage() {
             </div>
 
             {/* GitHub Token */}
-            <div className="card p-5">
+            <div className="card p-5 hover-lift">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-5">
                     <IconKey size={16} className="text-gray-400" />
                     GitHub Token
@@ -115,19 +118,21 @@ export default function ConfigPage() {
                         onChange={(v) => updateField('useGithubToken', v)}
                     />
                     {config.useGithubToken && (
-                        <InputRow
-                            label="Token"
-                            desc="GitHub Personal Access Token"
-                            value={config.githubToken || ''}
-                            type="password"
-                            onChange={(v) => updateField('githubToken', v)}
-                        />
+                        <div className="animate-expand-down origin-top">
+                            <InputRow
+                                label="Token"
+                                desc="GitHub Personal Access Token"
+                                value={config.githubToken || ''}
+                                type="password"
+                                onChange={(v) => updateField('githubToken', v)}
+                            />
+                        </div>
                     )}
                 </div>
             </div>
 
             {/* ManifestHub */}
-            <div className="card p-5">
+            <div className="card p-5 hover-lift">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-5">
                     <IconDatabase size={16} className="text-gray-400" />
                     ManifestHub 配置
@@ -172,7 +177,8 @@ export default function ConfigPage() {
             </div>
 
             {saving && (
-                <div className="fixed bottom-4 right-4 bg-brand-500 text-white text-xs px-3 py-2 rounded-lg shadow-lg">
+                <div className="saving-indicator fixed bottom-4 right-4 bg-primary text-white text-xs px-3 py-2 rounded-lg shadow-lg flex items-center gap-2">
+                    <div className="loading-spinner !w-3 !h-3 !border-[1.5px]" />
                     保存中...
                 </div>
             )}
