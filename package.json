@@ -1,9 +1,10 @@
 {
     "name": "napcat-plugin-steam-depot",
+    "plugin": "Steam Depot",
     "version": "1.0.0",
     "type": "module",
     "main": "index.mjs",
-    "description": "NapCat Steam Depot 下载器 - 从 GitHub 获取 Steam 游戏 Manifest 和解密密钥",
+    "description": "从 GitHub 仓库和 ManifestHub 数据源获取 Steam 游戏的 Manifest 和 Depot 解密密钥，自动生成 Lua 脚本并打包发送到 QQ 群",
     "author": "AQiaoYo",
     "license": "MIT",
     "keywords": [
@@ -14,6 +15,13 @@
         "depot",
         "manifest"
     ],
+    "napcat": {
+        "tags": [
+            "工具"
+        ],
+        "minVersion": "4.14.0",
+        "homepage": "https://github.com/AQiaoYo/napcat-plugin-steam-depot"
+    },
     "dependencies": {
         "napcat-types": "0.0.16"
     },
