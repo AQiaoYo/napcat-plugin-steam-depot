@@ -104,7 +104,10 @@ jobs:
           echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
 
       # （可选）AI 生成 Release Note
-      # 如需启用，请在仓库 Settings > Secrets 中配置：
+      # 支持两种配置方式（优先级：Secrets > Variables）：
+      #   方式一：Settings > Secrets and variables > Actions > Secrets（推荐，值会被隐藏）
+      #   方式二：Settings > Secrets and variables > Actions > Variables（明文存储）
+      # 需要配置：
       #   AI_API_URL: 兼容 OpenAI 格式的 API 地址（如 https://api.openai.com/v1/chat/completions）
       #   AI_API_KEY: 对应的 API 密钥
       #   AI_MODEL:  （可选）模型名称，默认 gpt-4o-mini
@@ -119,17 +122,17 @@ jobs:
             echo "ℹ️ 未配置 AI_API_KEY / AI_API_URL，将使用默认 Release Note"
           fi
         env:
-          AI_API_KEY: ${{ secrets.AI_API_KEY }}
-          AI_API_URL: ${{ secrets.AI_API_URL }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY || vars.AI_API_KEY }}
+          AI_API_URL: ${{ secrets.AI_API_URL || vars.AI_API_URL }}
 
       - name: AI Generate Release Note
         id: ai_release
         if: steps.ai_check.outputs.available == 'true'
         continue-on-error: true
         env:
-          AI_API_KEY: ${{ secrets.AI_API_KEY }}
-          AI_API_URL: ${{ secrets.AI_API_URL }}
-          AI_MODEL: ${{ secrets.AI_MODEL }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY || vars.AI_API_KEY }}
+          AI_API_URL: ${{ secrets.AI_API_URL || vars.AI_API_URL }}
+          AI_MODEL: ${{ secrets.AI_MODEL || vars.AI_MODEL }}
         run: |
           CURRENT_TAG="${{ steps.gitlog.outputs.current_tag }}"
           PREV_TAG="${{ steps.gitlog.outputs.prev_tag }}"
@@ -240,3 +243,23 @@ jobs:
             napcat-plugin-steam-depot.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 触发索引更新工作流
+      # 注意：默认 GITHUB_TOKEN 创建的 Release 不会触发 on.release 事件
+      # 因此需要手动通过 workflow_dispatch 触发 update-index.yml
+      - name: Trigger index update
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'update-index.yml',
+              ref: 'main',
+              inputs: {
+                version: '${{ steps.version.outputs.version }}'
+              }
+            })
+            console.log('✅ 已触发 update-index.yml 工作流')
