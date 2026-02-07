@@ -111,24 +111,35 @@ jobs:
           token: ${{ secrets.INDEX_PAT }}
 
       - name: Update plugins.v4.json
+        env:
+          PLUGIN_ID: ${{ steps.meta.outputs.plugin_id }}
+          PLUGIN_NAME: ${{ steps.meta.outputs.plugin_name }}
+          PLUGIN_VERSION: ${{ steps.meta.outputs.version }}
+          PLUGIN_DESCRIPTION: ${{ steps.meta.outputs.description }}
+          PLUGIN_AUTHOR: ${{ steps.meta.outputs.author }}
+          PLUGIN_HOMEPAGE: ${{ steps.meta.outputs.homepage }}
+          PLUGIN_DOWNLOAD_URL: ${{ steps.meta.outputs.download_url }}
+          PLUGIN_TAGS: ${{ steps.meta.outputs.tags }}
+          PLUGIN_MIN_VERSION: ${{ steps.meta.outputs.min_version }}
+          INDEX_FILE_NAME: ${{ env.INDEX_FILE }}
         run: |
           cd plugin-index
 
           node -e "
             const fs = require('fs');
-            const data = JSON.parse(fs.readFileSync('${{ env.INDEX_FILE }}', 'utf-8'));
+            const data = JSON.parse(fs.readFileSync(process.env.INDEX_FILE_NAME, 'utf-8'));
 
-            const pluginId = '${{ steps.meta.outputs.plugin_id }}';
+            const pluginId = process.env.PLUGIN_ID;
             const newPlugin = {
               id: pluginId,
-              name: '${{ steps.meta.outputs.plugin_name }}',
-              version: '${{ steps.meta.outputs.version }}',
-              description: $(node -e "console.log(JSON.stringify('${{ steps.meta.outputs.description }}'))"),
-              author: '${{ steps.meta.outputs.author }}',
-              homepage: '${{ steps.meta.outputs.homepage }}',
-              downloadUrl: '${{ steps.meta.outputs.download_url }}',
-              tags: ${{ steps.meta.outputs.tags }},
-              minVersion: '${{ steps.meta.outputs.min_version }}'
+              name: process.env.PLUGIN_NAME,
+              version: process.env.PLUGIN_VERSION,
+              description: process.env.PLUGIN_DESCRIPTION,
+              author: process.env.PLUGIN_AUTHOR,
+              homepage: process.env.PLUGIN_HOMEPAGE,
+              downloadUrl: process.env.PLUGIN_DOWNLOAD_URL,
+              tags: JSON.parse(process.env.PLUGIN_TAGS),
+              minVersion: process.env.PLUGIN_MIN_VERSION
             };
 
             // 查找是否已存在
@@ -144,7 +155,7 @@ jobs:
             // 更新时间戳
             data.updateTime = new Date().toISOString().replace(/\.\d{3}Z/, 'Z');
 
-            fs.writeFileSync('${{ env.INDEX_FILE }}', JSON.stringify(data, null, 2) + '\n');
+            fs.writeFileSync(process.env.INDEX_FILE_NAME, JSON.stringify(data, null, 2) + '\n');
             console.log('✅ plugins.v4.json 已更新');
           "
 
