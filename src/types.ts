@@ -47,6 +47,8 @@ export interface PluginConfig {
     groupConfigs?: Record<string, GroupConfig>;
     /** ManifestHub 数据源配置 */
     manifestHub: ManifestHubConfig;
+    /** 多清单源配置 */
+    multiSource: MultiSourceConfig;
 }
 
 /**
@@ -143,8 +145,9 @@ export interface ApiResponse<T = any> {
  * DepotKey 数据源类型
  * - SAC: SteamAutoCracks/ManifestHub GitHub 仓库
  * - Sudama: 第三方 API (api.993499094.xyz)
+ * - Both: 同时请求两个源并合并结果（覆盖率最高）
  */
-export type DepotKeySource = 'SAC' | 'Sudama';
+export type DepotKeySource = 'SAC' | 'Sudama' | 'Both';
 
 /**
  * DepotKeys 映射表
@@ -204,4 +207,44 @@ export interface ManifestHubConfig {
     setManifestId: boolean;
     /** DepotKeys 缓存过期时间（小时），0 表示不缓存 */
     cacheExpireHours: number;
+}
+
+// ==================== 多清单源相关类型 ====================
+
+/**
+ * 清单源类型
+ */
+export type ManifestSourceType =
+    | 'printedwaste'
+    | 'cysaw'
+    | 'furcate'
+    | 'assiw'
+    | 'steamdatabase'
+    | 'steamautocracks_v2'
+    | 'buqiuren';
+
+/**
+ * 清单源配置
+ */
+export interface ManifestSourceConfig {
+    /** 源名称 */
+    name: ManifestSourceType;
+    /** 是否启用 */
+    enabled: boolean;
+    /** 显示名称 */
+    displayName: string;
+    /** 基础 URL */
+    baseUrl: string;
+}
+
+/**
+ * 多清单源配置
+ */
+export interface MultiSourceConfig {
+    /** 是否启用多清单源功能 */
+    enabled: boolean;
+    /** 清单源列表 */
+    sources: ManifestSourceConfig[];
+    /** 是否在 GitHub 仓库失败后自动尝试多清单源 */
+    autoFallback: boolean;
 }

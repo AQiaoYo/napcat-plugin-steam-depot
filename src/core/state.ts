@@ -9,7 +9,7 @@ import type { NapCatPluginContext, PluginLogger } from 'napcat-types/napcat-oneb
 import type { ActionMap } from 'napcat-types/napcat-onebot/action/index';
 import type { NetworkAdapterConfig } from 'napcat-types/napcat-onebot/config/config';
 import { DEFAULT_CONFIG, getDefaultConfig } from '../config';
-import type { PluginConfig, GroupConfig, RepoType, DepotKeySource } from '../types';
+import type { PluginConfig, GroupConfig, RepoType, DepotKeySource, ManifestSourceType } from '../types';
 
 /** 日志前缀 */
 const LOG_TAG = '[SteamDepot]';
@@ -108,7 +108,7 @@ function sanitizeConfig(raw: unknown): PluginConfig {
         if (typeof mh['enabled'] === 'boolean') {
             out.manifestHub.enabled = mh['enabled'] as boolean;
         }
-        if (mh['depotKeySource'] === 'SAC' || mh['depotKeySource'] === 'Sudama') {
+        if (mh['depotKeySource'] === 'SAC' || mh['depotKeySource'] === 'Sudama' || mh['depotKeySource'] === 'Both') {
             out.manifestHub.depotKeySource = mh['depotKeySource'] as DepotKeySource;
         }
         if (typeof mh['includeDLC'] === 'boolean') {
@@ -119,6 +119,44 @@ function sanitizeConfig(raw: unknown): PluginConfig {
         }
         if (typeof mh['cacheExpireHours'] === 'number') {
             out.manifestHub.cacheExpireHours = mh['cacheExpireHours'] as number;
+        }
+    }
+
+    // multiSource
+    const rawMultiSource = (raw as Record<string, unknown>)['multiSource'];
+    if (isObject(rawMultiSource)) {
+        const ms = rawMultiSource as Record<string, unknown>;
+        if (typeof ms['enabled'] === 'boolean') {
+            out.multiSource.enabled = ms['enabled'] as boolean;
+        }
+        if (typeof ms['autoFallback'] === 'boolean') {
+            out.multiSource.autoFallback = ms['autoFallback'] as boolean;
+        }
+        // sources
+        const rawSources = ms['sources'];
+        if (Array.isArray(rawSources)) {
+            const validNames: ManifestSourceType[] = [
+                'printedwaste', 'cysaw', 'furcate', 'assiw',
+                'steamdatabase', 'steamautocracks_v2', 'buqiuren'
+            ];
+            const sanitizedSources = [];
+            for (const src of rawSources) {
+                if (isObject(src)) {
+                    const s = src as Record<string, unknown>;
+                    const name = s['name'] as string;
+                    if (typeof name === 'string' && validNames.includes(name as ManifestSourceType)) {
+                        sanitizedSources.push({
+                            name: name as ManifestSourceType,
+                            enabled: typeof s['enabled'] === 'boolean' ? s['enabled'] as boolean : true,
+                            displayName: typeof s['displayName'] === 'string' ? s['displayName'] as string : name,
+                            baseUrl: typeof s['baseUrl'] === 'string' ? s['baseUrl'] as string : '',
+                        });
+                    }
+                }
+            }
+            if (sanitizedSources.length > 0) {
+                out.multiSource.sources = sanitizedSources;
+            }
         }
     }
 

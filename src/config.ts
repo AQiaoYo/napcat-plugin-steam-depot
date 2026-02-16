@@ -4,7 +4,7 @@
  */
 
 import type { NapCatPluginContext } from 'napcat-types/napcat-onebot/network/plugin-manger';
-import type { PluginConfig, RepoConfig, ManifestHubConfig } from './types';
+import type { PluginConfig, RepoConfig, ManifestHubConfig, MultiSourceConfig, ManifestSourceConfig } from './types';
 
 /** 默认仓库列表 */
 const DEFAULT_REPOSITORIES: RepoConfig[] = [
@@ -12,6 +12,52 @@ const DEFAULT_REPOSITORIES: RepoConfig[] = [
     { name: 'Auiowu/ManifestAutoUpdate', type: 'Decrypted', enabled: false },
     { name: 'ikun0014/ManifestHub', type: 'Decrypted', enabled: false },
     { name: 'tymolu233/ManifestAutoUpdate', type: 'Decrypted', enabled: false },
+];
+
+/** 默认多清单源列表 */
+const DEFAULT_MANIFEST_SOURCES: ManifestSourceConfig[] = [
+    {
+        name: 'printedwaste',
+        enabled: true,
+        displayName: 'PrintedWaste',
+        baseUrl: 'https://github.com/printedwaste/ManifestHub/raw/main'
+    },
+    {
+        name: 'cysaw',
+        enabled: true,
+        displayName: 'Cysaw',
+        baseUrl: 'https://github.com/cysaw/ManifestAutoUpdate/raw/main'
+    },
+    {
+        name: 'furcate',
+        enabled: true,
+        displayName: 'Furcate',
+        baseUrl: 'https://github.com/furcate/ManifestHub/raw/main'
+    },
+    {
+        name: 'assiw',
+        enabled: true,
+        displayName: 'Assiw',
+        baseUrl: 'https://github.com/assiw/ManifestAutoUpdate/raw/main'
+    },
+    {
+        name: 'steamdatabase',
+        enabled: true,
+        displayName: 'SteamDatabase',
+        baseUrl: 'https://github.com/SteamDatabase/ManifestHub/raw/main'
+    },
+    {
+        name: 'steamautocracks_v2',
+        enabled: true,
+        displayName: 'SteamAutoCracks V2',
+        baseUrl: 'https://api.steam.ddxnb.cn'
+    },
+    {
+        name: 'buqiuren',
+        enabled: false,
+        displayName: 'Buqiuren',
+        baseUrl: 'https://api.buqiuren.com'
+    }
 ];
 
 /** 默认配置 */
@@ -27,10 +73,15 @@ export const DEFAULT_CONFIG: PluginConfig = {
     groupConfigs: {},
     manifestHub: {
         enabled: true,
-        depotKeySource: 'SAC',
+        depotKeySource: 'Both',
         includeDLC: true,
         setManifestId: true,
         cacheExpireHours: 24,
+    },
+    multiSource: {
+        enabled: true,
+        sources: DEFAULT_MANIFEST_SOURCES,
+        autoFallback: true,
     },
 };
 
@@ -72,5 +123,9 @@ export function getDefaultConfig(): PluginConfig {
         repositories: [...DEFAULT_REPOSITORIES.map(r => ({ ...r }))],
         groupConfigs: {},
         manifestHub: { ...DEFAULT_CONFIG.manifestHub },
+        multiSource: {
+            ...DEFAULT_CONFIG.multiSource,
+            sources: [...DEFAULT_MANIFEST_SOURCES.map(s => ({ ...s }))]
+        },
     };
 }

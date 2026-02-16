@@ -283,11 +283,69 @@ async function fetchSudamaDepotKeys(): Promise<DepotKeysMap> {
 }
 
 /**
+ * 同时从 SAC 和 Sudama 获取 DepotKeys 并合并
+ * 两个源并发请求，合并结果以获得最大覆盖率
+ * 任一源失败不影响另一个源的结果
+ */
+async function fetchBothDepotKeys(): Promise<DepotKeysMap> {
+    pluginState.log('info', '同时从 SAC + Sudama 获取 DepotKeys 并合并...');
+    const startTime = Date.now();
+
+    // 并发请求两个源，任一失败不影响另一个
+    const [sacResult, sudamaResult] = await Promise.allSettled([
+        fetchSACDepotKeys(),
+        fetchSudamaDepotKeys(),
+    ]);
+
+    const merged: DepotKeysMap = {};
+    let sacCount = 0;
+    let sudamaCount = 0;
+
+    // 先放 SAC 的结果
+    if (sacResult.status === 'fulfilled') {
+        const sacKeys = sacResult.value;
+        sacCount = Object.keys(sacKeys).length;
+        Object.assign(merged, sacKeys);
+        pluginState.log('info', `SAC 源成功: ${sacCount} 个密钥`);
+    } else {
+        pluginState.log('warn', `SAC 源失败: ${sacResult.reason}`);
+    }
+
+    // 再用 Sudama 的结果覆盖/补充
+    // Sudama 后写入，如果同一个 depotId 两边都有，以 Sudama 为准（通常更新更及时）
+    if (sudamaResult.status === 'fulfilled') {
+        const sudamaKeys = sudamaResult.value;
+        sudamaCount = Object.keys(sudamaKeys).length;
+        // 只补充 SAC 中没有的，或者覆盖 SAC 中值为空的
+        let newFromSudama = 0;
+        for (const [id, key] of Object.entries(sudamaKeys)) {
+            if (!merged[id] || !merged[id].trim()) {
+                merged[id] = key;
+                newFromSudama++;
+            }
+        }
+        pluginState.log('info', `Sudama 源成功: ${sudamaCount} 个密钥, 其中 ${newFromSudama} 个为 SAC 中缺失的`);
+    } else {
+        pluginState.log('warn', `Sudama 源失败: ${sudamaResult.reason}`);
+    }
+
+    const totalCount = Object.keys(merged).length;
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+    if (totalCount === 0) {
+        throw new Error('SAC 和 Sudama 两个源均失败，无法获取 DepotKeys');
+    }
+
+    pluginState.log('info', `合并完成: 共 ${totalCount} 个密钥 (SAC: ${sacCount}, Sudama: ${sudamaCount}), 耗时 ${elapsed}s`);
+    return merged;
+}
+
+/**
  * 获取 DepotKeys（带缓存）
  * @param forceRefresh 是否强制刷新（忽略缓存）
  */
 export async function getDepotKeys(forceRefresh: boolean = false): Promise<DepotKeysMap> {
-    const source = pluginState.config.manifestHub?.depotKeySource ?? 'SAC';
+    const source = pluginState.config.manifestHub?.depotKeySource ?? 'Both';
 
     // 检查内存缓存
     if (!forceRefresh && depotKeysCache) {
@@ -313,7 +371,9 @@ export async function getDepotKeys(forceRefresh: boolean = false): Promise<Depot
     pluginState.log('info', `从 ${source} 获取 DepotKeys...`);
     let keys: DepotKeysMap;
 
-    if (source === 'Sudama') {
+    if (source === 'Both') {
+        keys = await fetchBothDepotKeys();
+    } else if (source === 'Sudama') {
         keys = await fetchSudamaDepotKeys();
     } else {
         keys = await fetchSACDepotKeys();
