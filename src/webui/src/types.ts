@@ -37,7 +37,7 @@ export interface GroupConfig {
 
 export interface ManifestHubConfig {
     enabled: boolean
-    depotKeySource: 'SAC' | 'Sudama'
+    depotKeySource: 'SAC' | 'Sudama' | 'Both'
     includeDLC: boolean
     setManifestId: boolean
     cacheExpireHours: number

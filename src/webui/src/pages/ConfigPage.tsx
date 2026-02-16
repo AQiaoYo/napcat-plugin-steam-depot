@@ -183,11 +183,12 @@ export default function ConfigPage() {
                     />
                     <SelectRow
                         label="密钥来源"
-                        desc="DepotKey 数据源选择"
+                        desc="DepotKey 数据源选择，推荐使用「全部」以获得最大覆盖率"
                         value={config.manifestHub.depotKeySource}
                         options={[
-                            { value: 'SAC', label: 'SAC (SteamAutoCracks)' },
-                            { value: 'Sudama', label: 'Sudama (第三方 API)' },
+                            { value: 'Both', label: '全部 (SAC + Sudama 合并)' },
+                            { value: 'SAC', label: '仅 SAC (SteamAutoCracks)' },
+                            { value: 'Sudama', label: '仅 Sudama (第三方 API)' },
                         ]}
                         onChange={(v) => updateManifestHub('depotKeySource', v)}
                     />

@@ -148,7 +148,12 @@ export default function StatusPage({ status, onRefresh }: StatusPageProps) {
                     </h3>
                     <div className="space-y-3">
                         <InfoRow label="状态" value={config.manifestHub.enabled ? '已启用' : '已禁用'} />
-                        <InfoRow label="密钥来源" value={config.manifestHub.depotKeySource} />
+                        <InfoRow label="密钥来源" value={
+                            config.manifestHub.depotKeySource === 'Both' ? '全部 (SAC + Sudama)' :
+                                config.manifestHub.depotKeySource === 'SAC' ? 'SAC (SteamAutoCracks)' :
+                                    config.manifestHub.depotKeySource === 'Sudama' ? 'Sudama (第三方 API)' :
+                                        config.manifestHub.depotKeySource
+                        } />
                         <InfoRow label="包含 DLC" value={config.manifestHub.includeDLC ? '是' : '否'} />
                         <InfoRow label="设置 ManifestID" value={config.manifestHub.setManifestId ? '是' : '否'} />
                         <InfoRow label="缓存过期" value={`${config.manifestHub.cacheExpireHours} 小时`} />
