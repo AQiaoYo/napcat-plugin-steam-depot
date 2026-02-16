@@ -5,12 +5,14 @@
 ## ✨ 功能
 
 - 🎮 发送 `#depot <AppID>` 即可下载对应游戏的 Depot 数据
-- � **双数据源**：优先使用 ManifestHub（在线 API），自动回退到 GitHub 仓库
-- 🔑 自动获取 Depot 解密密钥（支持 SAC / Sudama 两种密钥源）
+- 🔄 **三层数据源**：ManifestHub（在线 API）→ GitHub 仓库 → 多清单源（7 个备用源）
+- 🔑 自动获取 Depot 解密密钥（支持 SAC + Sudama 双源合并，覆盖率最高）
 - 📜 自动生成用于 Steam 模拟器的 Lua 脚本（`addappid` + `setManifestid`）
 - 📤 打包成 ZIP 文件，通过合并转发消息发送到群
 - 🌐 支持多个 GitHub 仓库源（Branch / Encrypted / Decrypted 三种类型）
+- 🔄 支持 7 个备用清单源（PrintedWaste、Cysaw、Furcate、Assiw、SteamDatabase、SteamAutoCracks V2、Buqiuren）
 - ⚡ SAC 数据源多 CDN 镜像竞速下载，首个成功即返回
+- 🔀 **智能密钥合并**：ManifestHub 获取 Manifest 后若缺少密钥，自动从 GitHub 仓库补充
 - 💾 DepotKeys 双层缓存（内存 + 本地文件），可配置过期时间
 - ⏳ 同一群同一 AppID 可配置冷却时间，失败不计入 CD
 - 🖥️ WebUI 控制台（React SPA）：仪表盘、配置管理、仓库管理、群管理
@@ -44,7 +46,8 @@ napcat-plugin-steam-depot/
 │   ├── services/
 │   │   ├── api-service.ts          # WebUI API 路由注册
 │   │   ├── manifesthub-service.ts  # ManifestHub 数据源（密钥/清单/DLC/Lua 生成）
-│   │   └── steam-depot-service.ts  # GitHub 仓库数据源（下载/VDF 解析/ZIP 打包）
+│   │   ├── steam-depot-service.ts  # GitHub 仓库数据源（下载/VDF 解析/ZIP 打包）
+│   │   └── multi-source-service.ts # 多清单源服务（7 个备用 ZIP/API 源）
 │   └── webui/                      # React SPA 前端
 │       ├── src/
 │       │   ├── App.tsx             # 应用根组件
@@ -109,10 +112,12 @@ NapCat/plugins/napcat-plugin-steam-depot/
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
 | 启用 ManifestHub | 是否使用在线数据源 | `true` |
-| 密钥数据源 | `SAC`（GitHub 镜像竞速）或 `Sudama`（第三方 API） | `SAC` |
+| 密钥数据源 | `Both`（SAC + Sudama 合并）、`SAC`（GitHub 镜像竞速）或 `Sudama`（第三方 API） | `Both` |
 | 包含 DLC | 是否在 Lua 中包含 DLC 解锁 | `true` |
 | 设置 ManifestID | Lua 中是否固定清单版本 | `true` |
 | 缓存过期时间 | DepotKeys 缓存有效期（小时） | `24` |
+
+> 💡 **推荐使用 `Both` 模式**：同时请求 SAC 和 Sudama 两个密钥源并合并结果，覆盖率最高。某些游戏的密钥可能只存在于其中一个源中。
 
 ### 默认仓库源
 
@@ -160,11 +165,17 @@ DepotKeys 缓存的清除和刷新操作在 **WebUI 控制台 → 插件配置 �
 用户发送 #depot <AppID>
   → message-handler.ts 解析命令、检查群启用/CD
     → 优先: manifesthub-service.ts
-      → 并行获取 DepotKeys + Manifests + DLC
-      → 生成 Lua 脚本 + 打包 ZIP
-    → 回退: steam-depot-service.ts
+      → 并行获取 DepotKeys (SAC + Sudama 双源合并) + Manifests + DLC
+      → 有密钥 → 生成 Lua 脚本 + 打包 ZIP → 返回
+      → 无密钥 → 继续尝试 GitHub 仓库补充密钥
+    → 回退/补充: steam-depot-service.ts
       → 遍历启用的 GitHub 仓库 (Branch → Encrypted/Decrypted)
-      → 下载 manifest + 解析 VDF 密钥 + 生成 Lua + 打包 ZIP
+      → 下载 manifest + 解析 key.vdf 密钥
+      → 若 ManifestHub 有 Manifest 但无密钥 → 合并两者结果
+      → 否则独立生成 Lua + 打包 ZIP
+    → 回退2: multi-source-service.ts
+      → 按顺序尝试 7 个备用清单源
+      → 下载 ZIP → 解析 .lua/.vdf 中的密钥 + manifest → 打包 ZIP
   → 合并转发消息（游戏信息 + 密钥统计 + ZIP 文件）
   → 失败则尝试单独上传群文件作为兜底
 ```
@@ -174,10 +185,12 @@ DepotKeys 缓存的清除和刷新操作在 **WebUI 控制台 → 插件配置 �
 | 模式 | 实现位置 | 说明 |
 |------|----------|------|
 | 单例状态 | `src/core/state.ts` | `pluginState` 全局单例，持有 ctx、config、logger、stats |
-| 服务分层 | `src/services/*.ts` | 按职责拆分：API 路由、ManifestHub、Steam Depot 下载 |
+| 服务分层 | `src/services/*.ts` | 按职责拆分：API 路由、ManifestHub、Steam Depot 下载、多清单源 |
 | 配置清洗 | `sanitizeConfig()` | 类型安全的运行时配置验证，防止脏数据 |
 | 竞速模式 | `fetchSACDepotKeys()` | `Promise.any()` + 共享 `AbortController` 实现多源竞速 |
+| 双源合并 | `fetchBothDepotKeys()` | `Promise.allSettled()` 并发请求 SAC + Sudama，合并密钥覆盖率最大化 |
 | 双层缓存 | `getDepotKeys()` | 内存缓存 → 本地文件缓存 → 网络请求，带过期时间 |
+| 智能回退 | `downloadSteamDepot()` | ManifestHub 无密钥时自动从 GitHub 仓库补充，合并两者结果 |
 | CD 冷却 | `cooldownMap` | `Map<groupId:appId, expireTimestamp>`，成功才计入 CD |
 
 ## 🔧 生命周期函数
@@ -208,9 +221,10 @@ pnpm run typecheck      # TypeScript 类型检查
 
 | 任务 | 编辑文件 |
 |------|----------|
-| 添加配置项 | `src/types.ts` → `src/config.ts` → `src/core/state.ts`（sanitizeConfig） |
+| 添加配置项 | `src/types.ts` → `src/config.ts` → `src/core/state.ts`（sanitizeConfig）→ `src/webui/src/types.ts` |
 | 添加新命令 | `src/handlers/message-handler.ts` |
 | 添加新数据源 | `src/services/` 下新建服务文件 |
+| 添加新密钥源 | `src/services/manifesthub-service.ts`（参考 `fetchBothDepotKeys`） |
 | 修改 API 路由 | `src/services/api-service.ts` |
 | 修改 WebUI 页面 | `src/webui/src/pages/` |
 
@@ -261,7 +275,8 @@ res.status(500).json({ code: -1, message: '错误描述' });
 | `api.steamcmd.net/v1/info/<appId>` | 获取 DLC 列表 |
 | `api.github.com/repos/...` | GitHub 仓库 API（分支/树/zipball） |
 | SAC CDN 镜像（7 个源） | 下载 depotkeys.json（竞速） |
-| `api.993499094.xyz/depotkeys.json` | Sudama 备用密钥源 |
+| `api.993499094.xyz/depotkeys.json` | Sudama 密钥源 |
+| 多清单源（7 个） | PrintedWaste / Cysaw / Furcate / Assiw / SteamDatabase / SAC V2 / Buqiuren |
 
 ## 📦 部署
 
