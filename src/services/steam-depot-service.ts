@@ -12,7 +12,8 @@ import type {
     DepotKey,
     RepoConfig,
     GitHubTreeItem,
-    SteamAppInfo
+    SteamAppInfo,
+    ManifestHubResult
 } from '../types';
 
 /** CDN 列表，用于下载文件 */
@@ -535,15 +536,18 @@ export async function downloadSteamDepot(appId: string): Promise<DownloadResult>
 
     try {
         // ==================== ManifestHub 数据源 ====================
+        // 保存 ManifestHub 结果，即使密钥不全也可能后续与 GitHub 仓库结果合并
+        let hubResult: ManifestHubResult | null = null;
+
         if (pluginState.config.manifestHub?.enabled) {
             pluginState.log('info', `[ManifestHub] 尝试通过 ManifestHub 获取 AppID ${appId} 的数据...`);
             try {
-                const hubResult = await fetchFromManifestHub(appId);
+                hubResult = await fetchFromManifestHub(appId);
 
-                if (hubResult.success) {
+                if (hubResult.success && hubResult.depotKeys.length > 0) {
+                    // ManifestHub 获取到了 manifest 且有密钥，直接使用
                     const manifestHubConfig = pluginState.config.manifestHub;
 
-                    // 生成 Lua 脚本
                     const luaContent = generateManifestHubLua(
                         appId,
                         hubResult.depotKeys,
@@ -552,32 +556,27 @@ export async function downloadSteamDepot(appId: string): Promise<DownloadResult>
                         manifestHubConfig.setManifestId,
                     );
 
-                    // 创建输出目录
                     const appDir = path.join(tempDir, appId);
                     if (!fs.existsSync(appDir)) {
                         fs.mkdirSync(appDir, { recursive: true });
                     }
 
-                    // 写入 Lua 文件
                     const luaPath = path.join(appDir, `${appId}.lua`);
                     fs.writeFileSync(luaPath, luaContent, 'utf-8');
                     pluginState.log('info', `[ManifestHub] 生成 Lua 脚本: ${luaPath}`);
 
-                    // 写入密钥信息文件（便于用户查看）
                     if (hubResult.depotKeys.length > 0) {
                         const keyLines = hubResult.depotKeys.map(k => `${k.depotId}\t${k.decryptionKey}`);
                         const keyContent = `# Steam Depot Keys for AppID ${appId}\n# DepotID\tDecryptionKey\n${keyLines.join('\n')}`;
                         fs.writeFileSync(path.join(appDir, 'depot_keys.txt'), keyContent, 'utf-8');
                     }
 
-                    // 写入 Manifest 信息文件
                     if (Object.keys(hubResult.manifests).length > 0) {
                         const manifestLines = Object.entries(hubResult.manifests).map(([depotId, manifestId]) => `${depotId}\t${manifestId}`);
                         const manifestContent = `# Steam Manifests for AppID ${appId}\n# DepotID\tManifestID\n${manifestLines.join('\n')}`;
                         fs.writeFileSync(path.join(appDir, 'manifests.txt'), manifestContent, 'utf-8');
                     }
 
-                    // 打包成 zip
                     const zipPath = await createZipFromDir(appDir, path.join(tempDir, `${appId}.zip`));
                     if (zipPath) {
                         result.success = true;
@@ -590,17 +589,21 @@ export async function downloadSteamDepot(appId: string): Promise<DownloadResult>
                         pluginState.log('info', `[ManifestHub] AppID ${appId} 处理完成`);
                         return result;
                     }
+                } else if (hubResult.success && hubResult.depotKeys.length === 0) {
+                    // ManifestHub 获取到了 manifest 但没有密钥
+                    // 不直接返回，继续尝试从 GitHub 仓库获取密钥
+                    pluginState.log('info', `[ManifestHub] 获取到 ${Object.keys(hubResult.manifests).length} 个 Manifest，但未找到密钥，继续尝试 GitHub 仓库获取密钥...`);
                 }
             } catch (hubError) {
                 pluginState.log('warn', `[ManifestHub] 获取失败，回退到 GitHub 仓库方式: ${hubError}`);
             }
         }
 
-        // ==================== GitHub 仓库数据源（回退） ====================
+        // ==================== GitHub 仓库数据源（回退或补充密钥） ====================
         // 获取启用的仓库
         const enabledRepos = pluginState.config.repositories.filter(r => r.enabled);
 
-        if (enabledRepos.length === 0) {
+        if (enabledRepos.length === 0 && !hubResult) {
             result.error = '没有启用的仓库，请在配置中启用至少一个仓库';
             return result;
         }
@@ -614,12 +617,69 @@ export async function downloadSteamDepot(appId: string): Promise<DownloadResult>
             }
         }
 
-        // 尝试非 Branch 类型仓库
+        // 尝试非 Branch 类型仓库（Encrypted/Decrypted，这些仓库的分支中包含 key.vdf）
         const nonBranchRepos = enabledRepos.filter(r => r.type !== 'Branch');
         for (const repo of nonBranchRepos) {
             const repoResult = await downloadFromNonBranchRepo(repo, appId, tempDir);
             if (repoResult.success) {
-                // 合并游戏名称
+                // 如果 ManifestHub 之前获取到了 manifest 但没有密钥，
+                // 而 GitHub 仓库获取到了密钥，则合并两者的结果
+                if (hubResult && hubResult.depotKeys.length === 0 && repoResult.depotKeys.length > 0
+                    && Object.keys(hubResult.manifests).length > 0) {
+                    pluginState.log('info', `[合并] ManifestHub 的 Manifest + GitHub 仓库的密钥`);
+
+                    const manifestHubConfig = pluginState.config.manifestHub;
+                    const luaContent = generateManifestHubLua(
+                        appId,
+                        repoResult.depotKeys,
+                        hubResult.manifests,
+                        hubResult.dlcIds,
+                        manifestHubConfig?.setManifestId ?? true,
+                    );
+
+                    const appDir = path.join(tempDir, `${appId}_merged`);
+                    if (!fs.existsSync(appDir)) {
+                        fs.mkdirSync(appDir, { recursive: true });
+                    }
+
+                    // 写入合并后的 Lua 文件
+                    fs.writeFileSync(path.join(appDir, `${appId}.lua`), luaContent, 'utf-8');
+
+                    // 写入密钥信息文件
+                    if (repoResult.depotKeys.length > 0) {
+                        const keyLines = repoResult.depotKeys.map(k => `${k.depotId}\t${k.decryptionKey}`);
+                        const keyContent = `# Steam Depot Keys for AppID ${appId}\n# DepotID\tDecryptionKey\n${keyLines.join('\n')}`;
+                        fs.writeFileSync(path.join(appDir, 'depot_keys.txt'), keyContent, 'utf-8');
+                    }
+
+                    // 写入 Manifest 信息文件
+                    const manifestLines = Object.entries(hubResult.manifests).map(([depotId, manifestId]) => `${depotId}\t${manifestId}`);
+                    const manifestContent = `# Steam Manifests for AppID ${appId}\n# DepotID\tManifestID\n${manifestLines.join('\n')}`;
+                    fs.writeFileSync(path.join(appDir, 'manifests.txt'), manifestContent, 'utf-8');
+
+                    // 复制 GitHub 仓库中的 manifest 文件（如果有）
+                    for (const manifestPath of repoResult.manifests) {
+                        if (fs.existsSync(manifestPath)) {
+                            const fileName = path.basename(manifestPath);
+                            fs.copyFileSync(manifestPath, path.join(appDir, fileName));
+                        }
+                    }
+
+                    const zipPath = await createZipFromDir(appDir, path.join(tempDir, `${appId}.zip`));
+                    if (zipPath) {
+                        result.success = true;
+                        result.zipPath = zipPath;
+                        result.depotKeys = repoResult.depotKeys;
+                        result.manifests = Object.entries(hubResult.manifests).map(
+                            ([depotId, manifestId]) => `${depotId}_${manifestId}.manifest`
+                        );
+                        result.sourceRepo = `ManifestHub + ${repoResult.sourceRepo}`;
+                        pluginState.log('info', `[合并] AppID ${appId} 处理完成: ${repoResult.depotKeys.length} 个密钥 + ${Object.keys(hubResult.manifests).length} 个 Manifest`);
+                        return result;
+                    }
+                }
+
+                // 普通情况：直接使用 GitHub 仓库结果
                 if (result.gameName) {
                     repoResult.gameName = result.gameName;
                 }
@@ -627,7 +687,97 @@ export async function downloadSteamDepot(appId: string): Promise<DownloadResult>
             }
         }
 
+        // 如果 GitHub 仓库全部失败，但 ManifestHub 之前获取到了 manifest（只是没密钥）
+        // 仍然返回 ManifestHub 的结果（有 manifest 总比什么都没有好）
+        if (hubResult && Object.keys(hubResult.manifests).length > 0) {
+            pluginState.log('warn', `[ManifestHub] GitHub 仓库未找到密钥，使用 ManifestHub 的 Manifest（无密钥）`);
+
+            const manifestHubConfig = pluginState.config.manifestHub;
+            const luaContent = generateManifestHubLua(
+                appId,
+                hubResult.depotKeys,
+                hubResult.manifests,
+                hubResult.dlcIds,
+                manifestHubConfig?.setManifestId ?? true,
+            );
+
+            const appDir = path.join(tempDir, `${appId}_hub_only`);
+            if (!fs.existsSync(appDir)) {
+                fs.mkdirSync(appDir, { recursive: true });
+            }
+
+            fs.writeFileSync(path.join(appDir, `${appId}.lua`), luaContent, 'utf-8');
+
+            if (Object.keys(hubResult.manifests).length > 0) {
+                const manifestLines = Object.entries(hubResult.manifests).map(([depotId, manifestId]) => `${depotId}\t${manifestId}`);
+                const manifestContent = `# Steam Manifests for AppID ${appId}\n# DepotID\tManifestID\n${manifestLines.join('\n')}`;
+                fs.writeFileSync(path.join(appDir, 'manifests.txt'), manifestContent, 'utf-8');
+            }
+
+            const zipPath = await createZipFromDir(appDir, path.join(tempDir, `${appId}.zip`));
+            if (zipPath) {
+                result.success = true;
+                result.zipPath = zipPath;
+                result.depotKeys = hubResult.depotKeys;
+                result.manifests = Object.entries(hubResult.manifests).map(
+                    ([depotId, manifestId]) => `${depotId}_${manifestId}.manifest`
+                );
+                result.sourceRepo = `ManifestHub (${hubResult.keySource || 'SAC'}) [无密钥]`;
+                return result;
+            }
+        }
+
         result.error = `在所有仓库中都未找到 AppID ${appId}`;
+
+        // ==================== 多清单源数据源（最后回退） ====================
+        if (pluginState.config.multiSource?.enabled && pluginState.config.multiSource?.autoFallback) {
+            pluginState.log('info', `[MultiSource] GitHub 仓库全部失败，尝试多清单源...`);
+            try {
+                const { downloadFromMultiSources } = await import('./multi-source-service');
+                const multiResult = await downloadFromMultiSources(appId, pluginState.config.multiSource.sources);
+
+                if (multiResult.success) {
+                    // 如果多清单源成功，需要生成 Lua 并打包
+                    const appDir = path.join(tempDir, appId);
+                    if (!fs.existsSync(appDir)) {
+                        fs.mkdirSync(appDir, { recursive: true });
+                    }
+
+                    // 复制 manifest 文件到输出目录
+                    for (const manifestPath of multiResult.manifests) {
+                        const fileName = path.basename(manifestPath);
+                        const destPath = path.join(appDir, fileName);
+                        if (fs.existsSync(manifestPath)) {
+                            fs.copyFileSync(manifestPath, destPath);
+                        }
+                    }
+
+                    // 生成 Lua 脚本（无论是否有密钥都生成，密钥来自 ZIP 中的 .lua / key.vdf）
+                    const luaContent = generateLuaScript(appId, multiResult.depotKeys, multiResult.manifests);
+                    fs.writeFileSync(path.join(appDir, `${appId}.lua`), luaContent, 'utf-8');
+
+                    // 写入密钥信息文件（便于用户查看）
+                    if (multiResult.depotKeys.length > 0) {
+                        const keyLines = multiResult.depotKeys.map(k => `${k.depotId}\t${k.decryptionKey}`);
+                        const keyContent = `# Steam Depot Keys for AppID ${appId}\n# DepotID\tDecryptionKey\n${keyLines.join('\n')}`;
+                        fs.writeFileSync(path.join(appDir, 'depot_keys.txt'), keyContent, 'utf-8');
+                    }
+
+                    // 打包成 zip
+                    const zipPath = await createZipFromDir(appDir, path.join(tempDir, `${appId}.zip`));
+                    if (zipPath) {
+                        multiResult.zipPath = zipPath;
+                        if (result.gameName) {
+                            multiResult.gameName = result.gameName;
+                        }
+                        pluginState.log('info', `[MultiSource] AppID ${appId} 处理完成，来源: ${multiResult.sourceName}`);
+                        return multiResult;
+                    }
+                }
+            } catch (multiError) {
+                pluginState.log('warn', `[MultiSource] 多清单源也失败: ${multiError}`);
+            }
+        }
 
     } catch (error) {
         result.error = `下载过程发生错误: ${error}`;
