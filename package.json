@@ -23,14 +23,16 @@
         "homepage": "https://github.com/AQiaoYo/napcat-plugin-steam-depot"
     },
     "dependencies": {
+        "adm-zip": "^0.5.16",
         "napcat-types": "0.0.16"
     },
     "devDependencies": {
-        "@rollup/plugin-node-resolve": "^15.0.0",
+        "@rollup/plugin-node-resolve": "^15.3.1",
+        "@types/adm-zip": "^0.5.7",
         "@types/express": "^5.0.6",
-        "@types/node": "^20.0.0",
-        "typescript": "^5.0.0",
-        "vite": "^6.0.0"
+        "@types/node": "^20.19.33",
+        "typescript": "^5.9.3",
+        "vite": "^6.4.1"
     },
     "scripts": {
         "build": "vite build && pnpm run build:webui && pnpm run copy",
